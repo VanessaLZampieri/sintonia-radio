@@ -40,6 +40,9 @@ public class Room {
     @Column(name = "closed_at")
     private Instant closedAt;
 
+    @Column(name = "empty_since")
+    private Instant emptySince;
+
     public Room(String code, RoomStatus status) {
         this.code = code;
         this.status = status;
@@ -66,5 +69,23 @@ public class Room {
 
     public Instant getClosedAt() {
         return closedAt;
+    }
+
+    public Instant getEmptySince() {
+        return emptySince;
+    }
+
+    public void markEmpty() {
+        this.emptySince = Instant.now();
+    }
+
+    public void markOccupied() {
+        this.emptySince = null;
+    }
+
+    public void close() {
+        this.status = RoomStatus.CLOSED;
+        this.closedAt = Instant.now();
+        this.emptySince = null;
     }
 }
