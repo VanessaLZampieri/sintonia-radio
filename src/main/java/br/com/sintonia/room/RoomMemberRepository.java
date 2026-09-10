@@ -10,4 +10,6 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, Long> {
     Optional<RoomMember> findByRoomAndUserAndLeftAtIsNull(Room room, User user);
 
     long countByRoomAndLeftAtIsNull(Room room);
+
+    boolean existsByRoomIdAndUserIdAndLeftAtIsNull(Long roomId, Long userId);
 }
