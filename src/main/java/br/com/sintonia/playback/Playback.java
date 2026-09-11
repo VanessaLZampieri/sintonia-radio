@@ -67,4 +67,12 @@ public class Playback {
     public PlaybackStatus getStatus() {
         return status;
     }
+
+    public void setStatus(PlaybackStatus status) {
+        this.status = Objects.requireNonNull(status, "status não pode ser nulo");
+    }
+
+    public void setEndedAt(Instant endedAt) {
+        this.endedAt = Objects.requireNonNull(endedAt, "endedAt não pode ser nulo");
+    }
 }

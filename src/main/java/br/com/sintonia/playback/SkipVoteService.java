@@ -1,0 +1,58 @@
+package br.com.sintonia.playback;
+
+import br.com.sintonia.queue.QueueItem;
+import br.com.sintonia.room.Room;
+import br.com.sintonia.room.RoomMemberRepository;
+import br.com.sintonia.room.UserNotInRoomException;
+import br.com.sintonia.user.User;
+import br.com.sintonia.user.UserRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+
+@Service
+public class SkipVoteService {
+
+    private final PlaybackRepository playbackRepository;
+    private final RoomMemberRepository roomMemberRepository;
+    private final SkipVoteRepository skipVoteRepository;
+    private final UserRepository userRepository;
+
+    public SkipVoteService(PlaybackRepository playbackRepository,
+                           RoomMemberRepository roomMemberRepository,
+                           SkipVoteRepository skipVoteRepository,
+                           UserRepository userRepository) {
+        this.playbackRepository = playbackRepository;
+        this.roomMemberRepository = roomMemberRepository;
+        this.skipVoteRepository = skipVoteRepository;
+        this.userRepository = userRepository;
+    }
+
+    @Transactional
+    public SkipVote vote(Long playbackId, Long userId) {
+        Playback playback = playbackRepository.findById(playbackId)
+                .orElseThrow(() -> new PlaybackNotFoundException("Playback não encontrado."));
+
+        if (playback.getStatus() != PlaybackStatus.PLAYING) {
+            throw new PlaybackNotPlayingException("O playback não está em andamento.");
+        }
+
+        QueueItem queueItem = playback.getQueueItem();
+        Room room = queueItem.getRoom();
+
+        if (!roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(room.getId(), userId)) {
+            throw new UserNotInRoomException("Usuário não está na sala.");
+        }
+
+        if (skipVoteRepository.existsByPlaybackIdAndUserId(playbackId, userId)) {
+            throw new SkipVoteAlreadyExistsException("O usuário já votou neste playback.");
+        }
+
+        User user = userRepository.getReferenceById(userId);
+
+        SkipVote vote = new SkipVote(playback, user, Instant.now());
+
+        return skipVoteRepository.save(vote);
+    }
+}
