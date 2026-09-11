@@ -14,6 +14,8 @@ import java.time.Instant;
 @Service
 public class SkipVoteService {
 
+    private static final int SKIP_THRESHOLD_PERCENT = 60;
+
     private final PlaybackRepository playbackRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final SkipVoteRepository skipVoteRepository;
@@ -54,5 +56,20 @@ public class SkipVoteService {
         SkipVote vote = new SkipVote(playback, user, Instant.now());
 
         return skipVoteRepository.save(vote);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasReachedSkipThreshold(Long playbackId) {
+        Playback playback = playbackRepository.findById(playbackId)
+                .orElseThrow(() -> new PlaybackNotFoundException("Playback não encontrado."));
+
+        Room room = playback.getQueueItem().getRoom();
+
+        long participants = roomMemberRepository.countByRoomAndLeftAtIsNull(room);
+        long votes = skipVoteRepository.countByPlaybackId(playbackId);
+
+        long requiredVotes = Math.ceilDiv(participants * SKIP_THRESHOLD_PERCENT, 100);
+
+        return votes >= requiredVotes;
     }
 }

@@ -175,6 +175,107 @@ class SkipVoteServiceTest {
         assertThat(method.isAnnotationPresent(Transactional.class)).isTrue();
     }
 
+    @Test
+    void returnsFalseWhenBelowThreshold() {
+        stubThreshold(5, 2);
+
+        assertThat(skipVoteService.hasReachedSkipThreshold(PLAYBACK_ID)).isFalse();
+    }
+
+    @Test
+    void returnsTrueWhenExactlyAtThreshold() {
+        stubThreshold(5, 3);
+
+        assertThat(skipVoteService.hasReachedSkipThreshold(PLAYBACK_ID)).isTrue();
+    }
+
+    @Test
+    void returnsTrueWhenAboveThreshold() {
+        stubThreshold(5, 4);
+
+        assertThat(skipVoteService.hasReachedSkipThreshold(PLAYBACK_ID)).isTrue();
+    }
+
+    @Test
+    void roundsUpForThreeParticipants() {
+        stubThreshold(3, 1);
+
+        assertThat(skipVoteService.hasReachedSkipThreshold(PLAYBACK_ID)).isFalse();
+    }
+
+    @Test
+    void twoVotesEnoughForThreeParticipants() {
+        stubThreshold(3, 2);
+
+        assertThat(skipVoteService.hasReachedSkipThreshold(PLAYBACK_ID)).isTrue();
+    }
+
+    @Test
+    void countsVotesFromUsersWhoLeft() {
+        stubThreshold(3, 5);
+
+        assertThat(skipVoteService.hasReachedSkipThreshold(PLAYBACK_ID)).isTrue();
+    }
+
+    @Test
+    void onlyPresentParticipantsCountInDenominator() {
+        stubThreshold(2, 1);
+
+        assertThat(skipVoteService.hasReachedSkipThreshold(PLAYBACK_ID)).isFalse();
+    }
+
+    @Test
+    void throwsWhenPlaybackNotFoundForThreshold() {
+        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> skipVoteService.hasReachedSkipThreshold(PLAYBACK_ID))
+                .isInstanceOf(PlaybackNotFoundException.class);
+    }
+
+    @Test
+    void returnsFalseWithNoVotes() {
+        stubThreshold(5, 0);
+
+        assertThat(skipVoteService.hasReachedSkipThreshold(PLAYBACK_ID)).isFalse();
+    }
+
+    @Test
+    void oneParticipantNeedsOneVote() {
+        stubThreshold(1, 1);
+
+        assertThat(skipVoteService.hasReachedSkipThreshold(PLAYBACK_ID)).isTrue();
+    }
+
+    @Test
+    void oneParticipantWithNoVotesIsFalse() {
+        stubThreshold(1, 0);
+
+        assertThat(skipVoteService.hasReachedSkipThreshold(PLAYBACK_ID)).isFalse();
+    }
+
+    @Test
+    void fifteenParticipantsNeedNineVotes() {
+        stubThreshold(15, 9);
+
+        assertThat(skipVoteService.hasReachedSkipThreshold(PLAYBACK_ID)).isTrue();
+    }
+
+    @Test
+    void hasReachedSkipThresholdIsReadOnlyTransactional() throws NoSuchMethodException {
+        Method method = SkipVoteService.class.getMethod("hasReachedSkipThreshold", Long.class);
+
+        assertThat(method.isAnnotationPresent(Transactional.class)).isTrue();
+        assertThat(method.getAnnotation(Transactional.class).readOnly()).isTrue();
+    }
+
+    private void stubThreshold(long participants, long votes) {
+        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(playback.getQueueItem()).thenReturn(queueItem);
+        when(queueItem.getRoom()).thenReturn(room);
+        when(roomMemberRepository.countByRoomAndLeftAtIsNull(room)).thenReturn(participants);
+        when(skipVoteRepository.countByPlaybackId(PLAYBACK_ID)).thenReturn(votes);
+    }
+
     private void stubNotPlaying(PlaybackStatus status) {
         when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
         when(playback.getStatus()).thenReturn(status);
