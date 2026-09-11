@@ -79,4 +79,25 @@ public class PlaybackService {
 
         return playback;
     }
+
+    @Transactional
+    public Playback skip(Long playbackId) {
+        Playback playback = playbackRepository.findById(playbackId)
+                .orElseThrow(() -> new PlaybackNotFoundException("Playback não encontrado."));
+
+        if (playback.getStatus() != PlaybackStatus.PLAYING) {
+            throw new PlaybackNotPlayingException("O playback não está em andamento.");
+        }
+
+        playback.setStatus(PlaybackStatus.SKIPPED);
+        playback.setEndedAt(Instant.now());
+
+        QueueItem queueItem = playback.getQueueItem();
+        queueItem.setStatus(QueueItemStatus.SKIPPED);
+
+        playbackRepository.save(playback);
+        queueItemRepository.save(queueItem);
+
+        return playback;
+    }
 }

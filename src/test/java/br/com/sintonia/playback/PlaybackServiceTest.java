@@ -250,6 +250,78 @@ class PlaybackServiceTest {
         assertThat(method.isAnnotationPresent(Transactional.class)).isTrue();
     }
 
+    @Test
+    void skipsPlayingPlayback() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        stubFinishHappyPath(playback);
+
+        Playback result = playbackService.skip(PLAYBACK_ID);
+
+        assertThat(result).isSameAs(playback);
+    }
+
+    @Test
+    void playbackStatusChangesToSkipped() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        stubFinishHappyPath(playback);
+
+        Playback result = playbackService.skip(PLAYBACK_ID);
+
+        assertThat(result.getStatus()).isEqualTo(PlaybackStatus.SKIPPED);
+    }
+
+    @Test
+    void endedAtIsNotNullAfterSkip() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        stubFinishHappyPath(playback);
+
+        Playback result = playbackService.skip(PLAYBACK_ID);
+
+        assertThat(result.getEndedAt()).isNotNull();
+    }
+
+    @Test
+    void queueItemChangesToSkipped() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        stubFinishHappyPath(playback);
+
+        playbackService.skip(PLAYBACK_ID);
+
+        assertThat(queueItem.getStatus()).isEqualTo(QueueItemStatus.SKIPPED);
+    }
+
+    @Test
+    void throwsWhenPlaybackNotFoundForSkip() {
+        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> playbackService.skip(PLAYBACK_ID))
+                .isInstanceOf(PlaybackNotFoundException.class);
+    }
+
+    @Test
+    void throwsWhenPlaybackNotPlayingForSkip() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        playback.setStatus(PlaybackStatus.FINISHED);
+        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+
+        assertThatThrownBy(() -> playbackService.skip(PLAYBACK_ID))
+                .isInstanceOf(PlaybackNotPlayingException.class);
+
+        verify(queueItemRepository, never()).save(any(QueueItem.class));
+    }
+
+    @Test
+    void skipIsTransactional() throws NoSuchMethodException {
+        Method method = PlaybackService.class.getMethod("skip", Long.class);
+
+        assertThat(method.isAnnotationPresent(Transactional.class)).isTrue();
+    }
+
     private QueueItem waitingQueueItem() {
         return new QueueItem(room, song, user, Instant.now(), 1);
     }
