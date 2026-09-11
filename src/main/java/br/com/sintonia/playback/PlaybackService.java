@@ -4,6 +4,7 @@ import br.com.sintonia.queue.QueueItem;
 import br.com.sintonia.queue.QueueItemNotFoundException;
 import br.com.sintonia.queue.QueueItemRepository;
 import br.com.sintonia.queue.QueueItemStatus;
+import br.com.sintonia.queue.QueueService;
 import br.com.sintonia.room.Room;
 import br.com.sintonia.room.RoomClosedException;
 import br.com.sintonia.room.RoomNotFoundException;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 
 @Service
 public class PlaybackService {
@@ -20,13 +22,16 @@ public class PlaybackService {
     private final RoomRepository roomRepository;
     private final QueueItemRepository queueItemRepository;
     private final PlaybackRepository playbackRepository;
+    private final QueueService queueService;
 
     public PlaybackService(RoomRepository roomRepository,
                            QueueItemRepository queueItemRepository,
-                           PlaybackRepository playbackRepository) {
+                           PlaybackRepository playbackRepository,
+                           QueueService queueService) {
         this.roomRepository = roomRepository;
         this.queueItemRepository = queueItemRepository;
         this.playbackRepository = playbackRepository;
+        this.queueService = queueService;
     }
 
     @Transactional
@@ -57,6 +62,17 @@ public class PlaybackService {
         playbackRepository.save(playback);
 
         return playback;
+    }
+
+    @Transactional
+    public Optional<Playback> startNext(Long roomId) {
+        Optional<QueueItem> next = queueService.findNextWaiting(roomId);
+
+        if (next.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(start(roomId, next.get().getId()));
     }
 
     @Transactional

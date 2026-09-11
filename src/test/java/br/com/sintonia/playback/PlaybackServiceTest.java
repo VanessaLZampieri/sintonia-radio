@@ -4,6 +4,7 @@ import br.com.sintonia.queue.QueueItem;
 import br.com.sintonia.queue.QueueItemNotFoundException;
 import br.com.sintonia.queue.QueueItemRepository;
 import br.com.sintonia.queue.QueueItemStatus;
+import br.com.sintonia.queue.QueueService;
 import br.com.sintonia.room.Room;
 import br.com.sintonia.room.RoomClosedException;
 import br.com.sintonia.room.RoomNotFoundException;
@@ -29,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,6 +49,9 @@ class PlaybackServiceTest {
 
     @Mock
     private PlaybackRepository playbackRepository;
+
+    @Mock
+    private QueueService queueService;
 
     @InjectMocks
     private PlaybackService playbackService;
@@ -320,6 +325,96 @@ class PlaybackServiceTest {
         Method method = PlaybackService.class.getMethod("skip", Long.class);
 
         assertThat(method.isAnnotationPresent(Transactional.class)).isTrue();
+    }
+
+    @Test
+    void startNextThrowsWhenRoomDoesNotExist() {
+        when(queueService.findNextWaiting(ROOM_ID)).thenThrow(new RoomNotFoundException("Sala não encontrada."));
+
+        assertThatThrownBy(() -> playbackService.startNext(ROOM_ID))
+                .isInstanceOf(RoomNotFoundException.class);
+    }
+
+    @Test
+    void startNextThrowsWhenRoomIsClosed() {
+        when(queueService.findNextWaiting(ROOM_ID)).thenThrow(new RoomClosedException("Esta sala foi encerrada."));
+
+        assertThatThrownBy(() -> playbackService.startNext(ROOM_ID))
+                .isInstanceOf(RoomClosedException.class);
+    }
+
+    @Test
+    void startNextReturnsEmptyWhenNoWaitingQueueItem() {
+        when(queueService.findNextWaiting(ROOM_ID)).thenReturn(Optional.empty());
+
+        Optional<Playback> result = playbackService.startNext(ROOM_ID);
+
+        assertThat(result).isEmpty();
+        verify(playbackRepository, never()).save(any(Playback.class));
+    }
+
+    @Test
+    void startNextCreatesPlaybackWhenWaitingQueueItemExists() {
+        stubStartNextHappyPath();
+
+        Optional<Playback> result = playbackService.startNext(ROOM_ID);
+
+        assertThat(result).isPresent();
+    }
+
+    @Test
+    void startNextUsesReturnedQueueItem() {
+        stubStartNextHappyPath();
+
+        playbackService.startNext(ROOM_ID);
+
+        verify(queueItemRepository).findByIdAndRoomId(QUEUE_ITEM_ID, ROOM_ID);
+    }
+
+    @Test
+    void startNextChangesQueueItemToPlaying() {
+        QueueItem queueItem = stubStartNextHappyPath();
+
+        playbackService.startNext(ROOM_ID);
+
+        assertThat(queueItem.getStatus()).isEqualTo(QueueItemStatus.PLAYING);
+    }
+
+    @Test
+    void startNextCreatesPlayingPlayback() {
+        stubStartNextHappyPath();
+
+        Optional<Playback> result = playbackService.startNext(ROOM_ID);
+
+        assertThat(result.get().getStatus()).isEqualTo(PlaybackStatus.PLAYING);
+    }
+
+    @Test
+    void startNextPlaybackAssociatedWithCorrectQueueItem() {
+        QueueItem queueItem = stubStartNextHappyPath();
+
+        Optional<Playback> result = playbackService.startNext(ROOM_ID);
+
+        assertThat(result.get().getQueueItem()).isSameAs(queueItem);
+    }
+
+    @Test
+    void startNextCreatesOnlyOnePlayback() {
+        stubStartNextHappyPath();
+
+        playbackService.startNext(ROOM_ID);
+
+        verify(playbackRepository, times(1)).save(any(Playback.class));
+        verify(queueItemRepository, times(1)).save(any(QueueItem.class));
+    }
+
+    private QueueItem stubStartNextHappyPath() {
+        QueueItem nextQueueItem = mock(QueueItem.class);
+        when(nextQueueItem.getId()).thenReturn(QUEUE_ITEM_ID);
+        when(queueService.findNextWaiting(ROOM_ID)).thenReturn(Optional.of(nextQueueItem));
+        QueueItem queueItem = waitingQueueItem();
+        stubHappyPath(queueItem);
+        return queueItem;
     }
 
     private QueueItem waitingQueueItem() {
