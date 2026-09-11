@@ -93,6 +93,8 @@ public class PlaybackService {
         playbackRepository.save(playback);
         queueItemRepository.save(queueItem);
 
+        startNext(queueItem.getRoom().getId());
+
         return playback;
     }
 
@@ -113,6 +115,8 @@ public class PlaybackService {
 
         playbackRepository.save(playback);
         queueItemRepository.save(queueItem);
+
+        startNext(queueItem.getRoom().getId());
 
         return playback;
     }

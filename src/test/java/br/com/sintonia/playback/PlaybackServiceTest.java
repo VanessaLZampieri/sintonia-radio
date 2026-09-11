@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
@@ -63,6 +64,7 @@ class PlaybackServiceTest {
     @BeforeEach
     void setUp() {
         room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", ROOM_ID);
         song = new Song("abc123", "Title", null, Duration.ofSeconds(100));
         user = mock(User.class);
     }
@@ -328,6 +330,55 @@ class PlaybackServiceTest {
     }
 
     @Test
+    void finishTriggersFindNextWaiting() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        stubFinishHappyPath(playback);
+
+        playbackService.finish(PLAYBACK_ID);
+
+        verify(queueService).findNextWaiting(ROOM_ID);
+    }
+
+    @Test
+    void finishStartsNextPlaybackWhenWaitingItemExists() {
+        QueueItem current = playingQueueItem();
+        Playback playback = new Playback(current, Instant.now());
+        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+
+        QueueItem nextRef = mock(QueueItem.class);
+        when(nextRef.getId()).thenReturn(QUEUE_ITEM_ID);
+        when(queueService.findNextWaiting(ROOM_ID)).thenReturn(Optional.of(nextRef));
+
+        QueueItem actualNext = waitingQueueItem();
+        stubHappyPath(actualNext);
+
+        playbackService.finish(PLAYBACK_ID);
+
+        assertThat(current.getStatus()).isEqualTo(QueueItemStatus.FINISHED);
+        assertThat(actualNext.getStatus()).isEqualTo(QueueItemStatus.PLAYING);
+    }
+
+    @Test
+    void skipStartsNextPlaybackWhenWaitingItemExists() {
+        QueueItem current = playingQueueItem();
+        Playback playback = new Playback(current, Instant.now());
+        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+
+        QueueItem nextRef = mock(QueueItem.class);
+        when(nextRef.getId()).thenReturn(QUEUE_ITEM_ID);
+        when(queueService.findNextWaiting(ROOM_ID)).thenReturn(Optional.of(nextRef));
+
+        QueueItem actualNext = waitingQueueItem();
+        stubHappyPath(actualNext);
+
+        playbackService.skip(PLAYBACK_ID);
+
+        assertThat(current.getStatus()).isEqualTo(QueueItemStatus.SKIPPED);
+        assertThat(actualNext.getStatus()).isEqualTo(QueueItemStatus.PLAYING);
+    }
+
+    @Test
     void startNextThrowsWhenRoomDoesNotExist() {
         when(queueService.findNextWaiting(ROOM_ID)).thenThrow(new RoomNotFoundException("Sala não encontrada."));
 
@@ -431,6 +482,7 @@ class PlaybackServiceTest {
         when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
         when(playbackRepository.save(any(Playback.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(queueItemRepository.save(any(QueueItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(queueService.findNextWaiting(ROOM_ID)).thenReturn(Optional.empty());
     }
 
     private void stubHappyPath(QueueItem queueItem) {
