@@ -226,6 +226,99 @@ class QueueItemRepositoryTest {
         assertThat(queueItemRepository.findByRoomIdAndStatus(room2.getId(), QueueItemStatus.PLAYING)).isEmpty();
     }
 
+    @Test
+    void findFirstWaiting_returnsLowestPosition() {
+        Room room = persistRoom("QT000024");
+        User user = persistUser("g24", "e24@example.com");
+        persistQueueItem(room, persistSong("song-24a"), user, 2, QueueItemStatus.WAITING);
+        persistQueueItem(room, persistSong("song-24b"), user, 1, QueueItemStatus.WAITING);
+        persistQueueItem(room, persistSong("song-24c"), user, 3, QueueItemStatus.WAITING);
+
+        Optional<QueueItem> result = queueItemRepository
+                .findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(room.getId(), QueueItemStatus.WAITING);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getSong().getYoutubeVideoId()).isEqualTo("song-24b");
+    }
+
+    @Test
+    void findFirstWaiting_usesIdAsTiebreaker() {
+        Room room = persistRoom("QT000025");
+        User user = persistUser("g25", "e25@example.com");
+        persistQueueItem(room, persistSong("song-25a"), user, 1, QueueItemStatus.WAITING);
+        persistQueueItem(room, persistSong("song-25b"), user, 1, QueueItemStatus.WAITING);
+
+        Optional<QueueItem> result = queueItemRepository
+                .findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(room.getId(), QueueItemStatus.WAITING);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getSong().getYoutubeVideoId()).isEqualTo("song-25a");
+    }
+
+    @Test
+    void findFirstWaiting_ignoresPlaying() {
+        Room room = persistRoom("QT000026");
+        User user = persistUser("g26", "e26@example.com");
+        persistQueueItem(room, persistSong("song-26a"), user, 1, QueueItemStatus.PLAYING);
+        persistQueueItem(room, persistSong("song-26b"), user, 2, QueueItemStatus.WAITING);
+
+        Optional<QueueItem> result = queueItemRepository
+                .findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(room.getId(), QueueItemStatus.WAITING);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getSong().getYoutubeVideoId()).isEqualTo("song-26b");
+    }
+
+    @Test
+    void findFirstWaiting_ignoresFinished() {
+        Room room = persistRoom("QT000027");
+        User user = persistUser("g27", "e27@example.com");
+        persistQueueItem(room, persistSong("song-27a"), user, 1, QueueItemStatus.FINISHED);
+        persistQueueItem(room, persistSong("song-27b"), user, 2, QueueItemStatus.WAITING);
+
+        Optional<QueueItem> result = queueItemRepository
+                .findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(room.getId(), QueueItemStatus.WAITING);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getSong().getYoutubeVideoId()).isEqualTo("song-27b");
+    }
+
+    @Test
+    void findFirstWaiting_ignoresSkipped() {
+        Room room = persistRoom("QT000028");
+        User user = persistUser("g28", "e28@example.com");
+        persistQueueItem(room, persistSong("song-28a"), user, 1, QueueItemStatus.SKIPPED);
+        persistQueueItem(room, persistSong("song-28b"), user, 2, QueueItemStatus.WAITING);
+
+        Optional<QueueItem> result = queueItemRepository
+                .findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(room.getId(), QueueItemStatus.WAITING);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getSong().getYoutubeVideoId()).isEqualTo("song-28b");
+    }
+
+    @Test
+    void findFirstWaiting_returnsEmptyWhenNoWaiting() {
+        Room room = persistRoom("QT000029");
+        User user = persistUser("g29", "e29@example.com");
+        persistQueueItem(room, persistSong("song-29a"), user, 1, QueueItemStatus.PLAYING);
+        persistQueueItem(room, persistSong("song-29b"), user, 2, QueueItemStatus.FINISHED);
+
+        assertThat(queueItemRepository
+                .findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(room.getId(), QueueItemStatus.WAITING)).isEmpty();
+    }
+
+    @Test
+    void findFirstWaiting_doesNotReturnFromOtherRoom() {
+        Room room1 = persistRoom("QT000030");
+        Room room2 = persistRoom("QT000031");
+        User user = persistUser("g30", "e30@example.com");
+        persistQueueItem(room1, persistSong("song-30a"), user, 1, QueueItemStatus.WAITING);
+
+        assertThat(queueItemRepository
+                .findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(room2.getId(), QueueItemStatus.WAITING)).isEmpty();
+    }
+
     private Room persistRoom(String code) {
         Room room = new Room(code, RoomStatus.ACTIVE);
         entityManager.persist(room);

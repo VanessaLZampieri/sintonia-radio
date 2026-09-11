@@ -80,6 +80,18 @@ public class QueueService {
         return queueItemRepository.findByRoomIdAndStatus(roomId, QueueItemStatus.PLAYING);
     }
 
+    @Transactional(readOnly = true)
+    public Optional<QueueItem> findNextWaiting(Long roomId) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new RoomNotFoundException("Sala não encontrada."));
+
+        if (room.getStatus() != RoomStatus.ACTIVE) {
+            throw new RoomClosedException("Esta sala foi encerrada.");
+        }
+
+        return queueItemRepository.findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(roomId, QueueItemStatus.WAITING);
+    }
+
     @Transactional
     public void remove(Long roomId, Long queueItemId, Long userId) {
         Room room = roomRepository.findById(roomId)

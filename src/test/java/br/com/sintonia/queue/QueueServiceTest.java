@@ -409,4 +409,52 @@ class QueueServiceTest {
 
         verify(queueItemRepository, never()).findByRoomIdAndStatus(ROOM_ID, QueueItemStatus.PLAYING);
     }
+
+    @Test
+    void findNextWaitingReturnsItemWhenRoomHasWaiting() {
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(room));
+        QueueItem waiting = new QueueItem(room, song, user, java.time.Instant.now(), 1);
+        when(queueItemRepository.findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(ROOM_ID, QueueItemStatus.WAITING))
+                .thenReturn(Optional.of(waiting));
+
+        Optional<QueueItem> result = queueService.findNextWaiting(ROOM_ID);
+
+        assertThat(result).contains(waiting);
+        verify(queueItemRepository).findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(ROOM_ID, QueueItemStatus.WAITING);
+    }
+
+    @Test
+    void findNextWaitingReturnsEmptyWhenNoWaiting() {
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(room));
+        when(queueItemRepository.findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(ROOM_ID, QueueItemStatus.WAITING))
+                .thenReturn(Optional.empty());
+
+        Optional<QueueItem> result = queueService.findNextWaiting(ROOM_ID);
+
+        assertThat(result).isEmpty();
+        verify(queueItemRepository).findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(ROOM_ID, QueueItemStatus.WAITING);
+    }
+
+    @Test
+    void findNextWaitingThrowsWhenRoomDoesNotExist() {
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> queueService.findNextWaiting(ROOM_ID))
+                .isInstanceOf(RoomNotFoundException.class);
+
+        verify(queueItemRepository, never())
+                .findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(ROOM_ID, QueueItemStatus.WAITING);
+    }
+
+    @Test
+    void findNextWaitingThrowsWhenRoomIsClosed() {
+        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(closedRoom));
+
+        assertThatThrownBy(() -> queueService.findNextWaiting(ROOM_ID))
+                .isInstanceOf(RoomClosedException.class);
+
+        verify(queueItemRepository, never())
+                .findFirstByRoomIdAndStatusOrderByPositionAscIdAsc(ROOM_ID, QueueItemStatus.WAITING);
+    }
 }
