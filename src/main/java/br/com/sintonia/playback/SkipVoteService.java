@@ -20,15 +20,18 @@ public class SkipVoteService {
     private final RoomMemberRepository roomMemberRepository;
     private final SkipVoteRepository skipVoteRepository;
     private final UserRepository userRepository;
+    private final PlaybackService playbackService;
 
     public SkipVoteService(PlaybackRepository playbackRepository,
                            RoomMemberRepository roomMemberRepository,
                            SkipVoteRepository skipVoteRepository,
-                           UserRepository userRepository) {
+                           UserRepository userRepository,
+                           PlaybackService playbackService) {
         this.playbackRepository = playbackRepository;
         this.roomMemberRepository = roomMemberRepository;
         this.skipVoteRepository = skipVoteRepository;
         this.userRepository = userRepository;
+        this.playbackService = playbackService;
     }
 
     @Transactional
@@ -54,8 +57,13 @@ public class SkipVoteService {
         User user = userRepository.getReferenceById(userId);
 
         SkipVote vote = new SkipVote(playback, user, Instant.now());
+        SkipVote saved = skipVoteRepository.save(vote);
 
-        return skipVoteRepository.save(vote);
+        if (hasReachedSkipThreshold(playbackId)) {
+            playbackService.skip(playbackId);
+        }
+
+        return saved;
     }
 
     @Transactional(readOnly = true)

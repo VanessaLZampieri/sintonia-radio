@@ -44,6 +44,9 @@ class SkipVoteServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private PlaybackService playbackService;
+
     @InjectMocks
     private SkipVoteService skipVoteService;
 
@@ -176,6 +179,34 @@ class SkipVoteServiceTest {
     }
 
     @Test
+    void doesNotSkipWhenBelowThreshold() {
+        stubHappyPath(5, 1);
+
+        SkipVote result = skipVoteService.vote(PLAYBACK_ID, USER_ID);
+
+        assertThat(result).isNotNull();
+        verify(playbackService, never()).skip(PLAYBACK_ID);
+    }
+
+    @Test
+    void skipsWhenExactlyAtThreshold() {
+        stubHappyPath(5, 3);
+
+        skipVoteService.vote(PLAYBACK_ID, USER_ID);
+
+        verify(playbackService).skip(PLAYBACK_ID);
+    }
+
+    @Test
+    void skipsWhenAboveThreshold() {
+        stubHappyPath(5, 4);
+
+        skipVoteService.vote(PLAYBACK_ID, USER_ID);
+
+        verify(playbackService).skip(PLAYBACK_ID);
+    }
+
+    @Test
     void returnsFalseWhenBelowThreshold() {
         stubThreshold(5, 2);
 
@@ -282,6 +313,10 @@ class SkipVoteServiceTest {
     }
 
     private void stubHappyPath() {
+        stubHappyPath(5, 1);
+    }
+
+    private void stubHappyPath(long participants, long votes) {
         when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
         when(playback.getStatus()).thenReturn(PlaybackStatus.PLAYING);
         when(playback.getQueueItem()).thenReturn(queueItem);
@@ -291,5 +326,7 @@ class SkipVoteServiceTest {
         when(skipVoteRepository.existsByPlaybackIdAndUserId(PLAYBACK_ID, USER_ID)).thenReturn(false);
         when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
         when(skipVoteRepository.save(any(SkipVote.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(roomMemberRepository.countByRoomAndLeftAtIsNull(room)).thenReturn(participants);
+        when(skipVoteRepository.countByPlaybackId(PLAYBACK_ID)).thenReturn(votes);
     }
 }
