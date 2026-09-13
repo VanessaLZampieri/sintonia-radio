@@ -12,9 +12,14 @@ import br.com.sintonia.room.RoomRepository;
 import br.com.sintonia.room.RoomStatus;
 import br.com.sintonia.song.Song;
 import br.com.sintonia.user.User;
+import br.com.sintonia.websocket.PlaybackEventPayload;
+import br.com.sintonia.websocket.RoomEvent;
+import br.com.sintonia.websocket.RoomEventPublisher;
+import br.com.sintonia.websocket.RoomEventType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,6 +34,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -53,6 +59,9 @@ class PlaybackServiceTest {
 
     @Mock
     private QueueService queueService;
+
+    @Mock
+    private RoomEventPublisher roomEventPublisher;
 
     @InjectMocks
     private PlaybackService playbackService;
@@ -459,6 +468,99 @@ class PlaybackServiceTest {
         verify(queueItemRepository, times(1)).save(any(QueueItem.class));
     }
 
+    @Test
+    void startPublishesPlaybackStartedEvent() {
+        QueueItem queueItem = waitingQueueItem();
+        stubHappyPath(queueItem);
+
+        playbackService.start(ROOM_ID, QUEUE_ITEM_ID);
+
+        ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
+        verify(roomEventPublisher).publish(eq("ABCDEFGH"), captor.capture());
+        RoomEvent event = captor.getValue();
+        assertThat(event.eventType()).isEqualTo(RoomEventType.PLAYBACK_STARTED);
+        assertThat(event.roomId()).isEqualTo(ROOM_ID);
+        PlaybackEventPayload payload = (PlaybackEventPayload) event.payload();
+        assertThat(payload.playbackId()).isEqualTo(PLAYBACK_ID);
+        assertThat(payload.queueItemId()).isEqualTo(QUEUE_ITEM_ID);
+    }
+
+    @Test
+    void finishPublishesPlaybackFinishedEvent() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        stubFinishHappyPath(playback);
+
+        playbackService.finish(PLAYBACK_ID);
+
+        ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
+        verify(roomEventPublisher).publish(eq("ABCDEFGH"), captor.capture());
+        RoomEvent event = captor.getValue();
+        assertThat(event.eventType()).isEqualTo(RoomEventType.PLAYBACK_FINISHED);
+        assertThat(event.roomId()).isEqualTo(ROOM_ID);
+    }
+
+    @Test
+    void skipPublishesPlaybackSkippedEvent() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        stubFinishHappyPath(playback);
+
+        playbackService.skip(PLAYBACK_ID);
+
+        ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
+        verify(roomEventPublisher).publish(eq("ABCDEFGH"), captor.capture());
+        RoomEvent event = captor.getValue();
+        assertThat(event.eventType()).isEqualTo(RoomEventType.PLAYBACK_SKIPPED);
+        assertThat(event.roomId()).isEqualTo(ROOM_ID);
+    }
+
+    @Test
+    void finishWithNextItemPublishesFinishedThenStarted() {
+        QueueItem current = playingQueueItem();
+        Playback playback = new Playback(current, Instant.now());
+        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+
+        QueueItem nextRef = mock(QueueItem.class);
+        when(nextRef.getId()).thenReturn(QUEUE_ITEM_ID);
+        when(queueService.findNextWaiting(ROOM_ID)).thenReturn(Optional.of(nextRef));
+
+        QueueItem actualNext = waitingQueueItem();
+        stubHappyPath(actualNext);
+
+        playbackService.finish(PLAYBACK_ID);
+
+        ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
+        verify(roomEventPublisher, times(2)).publish(eq("ABCDEFGH"), captor.capture());
+        var events = captor.getAllValues();
+        assertThat(events).hasSize(2);
+        assertThat(events.get(0).eventType()).isEqualTo(RoomEventType.PLAYBACK_FINISHED);
+        assertThat(events.get(1).eventType()).isEqualTo(RoomEventType.PLAYBACK_STARTED);
+    }
+
+    @Test
+    void skipWithNextItemPublishesSkippedThenStarted() {
+        QueueItem current = playingQueueItem();
+        Playback playback = new Playback(current, Instant.now());
+        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+
+        QueueItem nextRef = mock(QueueItem.class);
+        when(nextRef.getId()).thenReturn(QUEUE_ITEM_ID);
+        when(queueService.findNextWaiting(ROOM_ID)).thenReturn(Optional.of(nextRef));
+
+        QueueItem actualNext = waitingQueueItem();
+        stubHappyPath(actualNext);
+
+        playbackService.skip(PLAYBACK_ID);
+
+        ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
+        verify(roomEventPublisher, times(2)).publish(eq("ABCDEFGH"), captor.capture());
+        var events = captor.getAllValues();
+        assertThat(events).hasSize(2);
+        assertThat(events.get(0).eventType()).isEqualTo(RoomEventType.PLAYBACK_SKIPPED);
+        assertThat(events.get(1).eventType()).isEqualTo(RoomEventType.PLAYBACK_STARTED);
+    }
+
     private QueueItem stubStartNextHappyPath() {
         QueueItem nextQueueItem = mock(QueueItem.class);
         when(nextQueueItem.getId()).thenReturn(QUEUE_ITEM_ID);
@@ -469,12 +571,15 @@ class PlaybackServiceTest {
     }
 
     private QueueItem waitingQueueItem() {
-        return new QueueItem(room, song, user, Instant.now(), 1);
+        QueueItem item = new QueueItem(room, song, user, Instant.now(), 1);
+        ReflectionTestUtils.setField(item, "id", QUEUE_ITEM_ID);
+        return item;
     }
 
     private QueueItem playingQueueItem() {
         QueueItem item = new QueueItem(room, song, user, Instant.now(), 1);
         item.setStatus(QueueItemStatus.PLAYING);
+        ReflectionTestUtils.setField(item, "id", QUEUE_ITEM_ID);
         return item;
     }
 
@@ -491,6 +596,10 @@ class PlaybackServiceTest {
         when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING))
                 .thenReturn(Optional.empty());
         when(queueItemRepository.save(any(QueueItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(playbackRepository.save(any(Playback.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(playbackRepository.save(any(Playback.class))).thenAnswer(invocation -> {
+            Playback saved = invocation.getArgument(0);
+            ReflectionTestUtils.setField(saved, "id", PLAYBACK_ID);
+            return saved;
+        });
     }
 }

@@ -2,6 +2,8 @@ package br.com.sintonia.websocket;
 
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Component
 public class RoomEventPublisher {
@@ -15,7 +17,16 @@ public class RoomEventPublisher {
     }
 
     public void publish(String roomCode, RoomEvent event) {
-        messagingTemplate.convertAndSend(destinationFor(roomCode), event);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    messagingTemplate.convertAndSend(destinationFor(roomCode), event);
+                }
+            });
+        } else {
+            messagingTemplate.convertAndSend(destinationFor(roomCode), event);
+        }
     }
 
     public String destinationFor(String roomCode) {

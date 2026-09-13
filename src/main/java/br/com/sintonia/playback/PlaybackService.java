@@ -10,6 +10,10 @@ import br.com.sintonia.room.RoomClosedException;
 import br.com.sintonia.room.RoomNotFoundException;
 import br.com.sintonia.room.RoomRepository;
 import br.com.sintonia.room.RoomStatus;
+import br.com.sintonia.websocket.PlaybackEventPayload;
+import br.com.sintonia.websocket.RoomEvent;
+import br.com.sintonia.websocket.RoomEventPublisher;
+import br.com.sintonia.websocket.RoomEventType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,15 +27,18 @@ public class PlaybackService {
     private final QueueItemRepository queueItemRepository;
     private final PlaybackRepository playbackRepository;
     private final QueueService queueService;
+    private final RoomEventPublisher roomEventPublisher;
 
     public PlaybackService(RoomRepository roomRepository,
                            QueueItemRepository queueItemRepository,
                            PlaybackRepository playbackRepository,
-                           QueueService queueService) {
+                           QueueService queueService,
+                           RoomEventPublisher roomEventPublisher) {
         this.roomRepository = roomRepository;
         this.queueItemRepository = queueItemRepository;
         this.playbackRepository = playbackRepository;
         this.queueService = queueService;
+        this.roomEventPublisher = roomEventPublisher;
     }
 
     @Transactional
@@ -60,6 +67,10 @@ public class PlaybackService {
 
         queueItemRepository.save(queueItem);
         playbackRepository.save(playback);
+
+        roomEventPublisher.publish(room.getCode(),
+                new RoomEvent(RoomEventType.PLAYBACK_STARTED, roomId,
+                        new PlaybackEventPayload(playback.getId(), queueItemId)));
 
         return playback;
     }
@@ -93,7 +104,12 @@ public class PlaybackService {
         playbackRepository.save(playback);
         queueItemRepository.save(queueItem);
 
-        startNext(queueItem.getRoom().getId());
+        Room room = queueItem.getRoom();
+        roomEventPublisher.publish(room.getCode(),
+                new RoomEvent(RoomEventType.PLAYBACK_FINISHED, room.getId(),
+                        new PlaybackEventPayload(playbackId, queueItem.getId())));
+
+        startNext(room.getId());
 
         return playback;
     }
@@ -116,7 +132,12 @@ public class PlaybackService {
         playbackRepository.save(playback);
         queueItemRepository.save(queueItem);
 
-        startNext(queueItem.getRoom().getId());
+        Room room = queueItem.getRoom();
+        roomEventPublisher.publish(room.getCode(),
+                new RoomEvent(RoomEventType.PLAYBACK_SKIPPED, room.getId(),
+                        new PlaybackEventPayload(playbackId, queueItem.getId())));
+
+        startNext(room.getId());
 
         return playback;
     }
