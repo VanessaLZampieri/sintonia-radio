@@ -12,12 +12,19 @@ import br.com.sintonia.song.SongNotFoundException;
 import br.com.sintonia.song.SongRepository;
 import br.com.sintonia.user.User;
 import br.com.sintonia.user.UserRepository;
+import br.com.sintonia.websocket.QueueChangeAction;
+import br.com.sintonia.websocket.QueueChangedEventPayload;
+import br.com.sintonia.websocket.RoomEvent;
+import br.com.sintonia.websocket.RoomEventPublisher;
+import br.com.sintonia.websocket.RoomEventType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
 import java.util.List;
@@ -26,6 +33,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -38,6 +46,7 @@ class QueueServiceTest {
     private static final Long ROOM_ID = 1L;
     private static final Long SONG_ID = 10L;
     private static final Long USER_ID = 100L;
+    private static final Long QUEUE_ITEM_ID = 42L;
 
     @Mock
     private RoomRepository roomRepository;
@@ -53,6 +62,9 @@ class QueueServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private RoomEventPublisher roomEventPublisher;
 
     @InjectMocks
     private QueueService queueService;
@@ -98,6 +110,22 @@ class QueueServiceTest {
         QueueItem result = queueService.add(ROOM_ID, SONG_ID, USER_ID);
 
         assertThat(result.getPosition()).isEqualTo(6);
+    }
+
+    @Test
+    void addPublishesQueueChangedEvent() {
+        stubHappyPath(0, 0L);
+
+        queueService.add(ROOM_ID, SONG_ID, USER_ID);
+
+        ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
+        verify(roomEventPublisher).publish(eq("ABCDEFGH"), captor.capture());
+        RoomEvent event = captor.getValue();
+        assertThat(event.eventType()).isEqualTo(RoomEventType.QUEUE_CHANGED);
+        assertThat(event.roomId()).isEqualTo(ROOM_ID);
+        QueueChangedEventPayload payload = (QueueChangedEventPayload) event.payload();
+        assertThat(payload.queueItemId()).isEqualTo(QUEUE_ITEM_ID);
+        assertThat(payload.action()).isEqualTo(QueueChangeAction.ADDED);
     }
 
     @Test
@@ -158,6 +186,19 @@ class QueueServiceTest {
     }
 
     @Test
+    void rejectedAddDoesNotPublishEvent() {
+        when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
+        when(songRepository.findById(SONG_ID)).thenReturn(Optional.of(song));
+        when(queueItemRepository.existsByRoomIdAndSongId(ROOM_ID, SONG_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> queueService.add(ROOM_ID, SONG_ID, USER_ID))
+                .isInstanceOf(SongAlreadyInQueueException.class);
+
+        verifyNoInteractions(roomEventPublisher);
+    }
+
+    @Test
     void rejectsWhenUserReachedEightSongs() {
         when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
         when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
@@ -199,7 +240,11 @@ class QueueServiceTest {
         when(queueItemRepository.countByRoomIdAndUserId(ROOM_ID, USER_ID)).thenReturn(userCount);
         when(queueItemRepository.findMaxPositionByRoomId(ROOM_ID)).thenReturn(maxPosition);
         when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
-        when(queueItemRepository.save(any(QueueItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(queueItemRepository.save(any(QueueItem.class))).thenAnswer(invocation -> {
+            QueueItem saved = invocation.getArgument(0);
+            ReflectionTestUtils.setField(saved, "id", QUEUE_ITEM_ID);
+            return saved;
+        });
     }
 
     @Test
@@ -307,6 +352,25 @@ class QueueServiceTest {
 
         verify(queueItemRepository).findByIdAndRoomId(10L, ROOM_ID);
         verify(queueItemRepository).deleteById(10L);
+    }
+
+    @Test
+    void removePublishesQueueChangedEvent() {
+        QueueItem item = new QueueItem(room, song, user, java.time.Instant.now(), 1);
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(room));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
+        when(queueItemRepository.findByIdAndRoomId(10L, ROOM_ID)).thenReturn(Optional.of(item));
+
+        queueService.remove(ROOM_ID, 10L, USER_ID);
+
+        ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
+        verify(roomEventPublisher).publish(eq("ABCDEFGH"), captor.capture());
+        RoomEvent event = captor.getValue();
+        assertThat(event.eventType()).isEqualTo(RoomEventType.QUEUE_CHANGED);
+        assertThat(event.roomId()).isEqualTo(ROOM_ID);
+        QueueChangedEventPayload payload = (QueueChangedEventPayload) event.payload();
+        assertThat(payload.queueItemId()).isEqualTo(10L);
+        assertThat(payload.action()).isEqualTo(QueueChangeAction.REMOVED);
     }
 
     @Test

@@ -13,6 +13,11 @@ import br.com.sintonia.song.SongRepository;
 import br.com.sintonia.queue.QueueItemNotFoundException;
 import br.com.sintonia.user.User;
 import br.com.sintonia.user.UserRepository;
+import br.com.sintonia.websocket.QueueChangeAction;
+import br.com.sintonia.websocket.QueueChangedEventPayload;
+import br.com.sintonia.websocket.RoomEvent;
+import br.com.sintonia.websocket.RoomEventPublisher;
+import br.com.sintonia.websocket.RoomEventType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,17 +35,20 @@ public class QueueService {
     private final SongRepository songRepository;
     private final QueueItemRepository queueItemRepository;
     private final UserRepository userRepository;
+    private final RoomEventPublisher roomEventPublisher;
 
     public QueueService(RoomRepository roomRepository,
                         RoomMemberRepository roomMemberRepository,
                         SongRepository songRepository,
                         QueueItemRepository queueItemRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        RoomEventPublisher roomEventPublisher) {
         this.roomRepository = roomRepository;
         this.roomMemberRepository = roomMemberRepository;
         this.songRepository = songRepository;
         this.queueItemRepository = queueItemRepository;
         this.userRepository = userRepository;
+        this.roomEventPublisher = roomEventPublisher;
     }
 
     @Transactional(readOnly = true)
@@ -109,6 +117,10 @@ public class QueueService {
                 .orElseThrow(() -> new QueueItemNotFoundException("Item da fila não encontrado."));
 
         queueItemRepository.deleteById(queueItemId);
+
+        roomEventPublisher.publish(room.getCode(),
+                new RoomEvent(RoomEventType.QUEUE_CHANGED, roomId,
+                        new QueueChangedEventPayload(queueItemId, QueueChangeAction.REMOVED)));
     }
 
     @Transactional
@@ -139,6 +151,10 @@ public class QueueService {
         User user = userRepository.getReferenceById(userId);
         int position = queueItemRepository.findMaxPositionByRoomId(roomId) + 1;
 
-        return queueItemRepository.save(new QueueItem(room, song, user, Instant.now(), position));
+        QueueItem saved = queueItemRepository.save(new QueueItem(room, song, user, Instant.now(), position));
+        roomEventPublisher.publish(room.getCode(),
+                new RoomEvent(RoomEventType.QUEUE_CHANGED, roomId,
+                        new QueueChangedEventPayload(saved.getId(), QueueChangeAction.ADDED)));
+        return saved;
     }
 }
