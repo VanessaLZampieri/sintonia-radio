@@ -1,5 +1,8 @@
 package br.com.sintonia.exception;
 
+import br.com.sintonia.room.InvalidClientSessionIdException;
+import br.com.sintonia.room.NotThePlayerException;
+import br.com.sintonia.room.PlayerAlreadyClaimedException;
 import br.com.sintonia.room.RoomClosedException;
 import br.com.sintonia.room.RoomFullException;
 import br.com.sintonia.room.RoomNotFoundException;
@@ -77,6 +80,24 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(QueueItemNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleQueueItemNotFound(QueueItemNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidClientSessionIdException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidClientSessionId(InvalidClientSessionIdException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PlayerAlreadyClaimedException.class)
+    public ResponseEntity<Map<String, String>> handlePlayerAlreadyClaimed(PlayerAlreadyClaimedException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(NotThePlayerException.class)
+    public ResponseEntity<Map<String, String>> handleNotThePlayer(NotThePlayerException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of("message", exception.getMessage()));
     }
 }

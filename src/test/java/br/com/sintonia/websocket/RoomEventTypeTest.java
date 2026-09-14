@@ -12,6 +12,7 @@ class RoomEventTypeTest {
                 RoomEventType.PLAYBACK_STARTED,
                 RoomEventType.PLAYBACK_FINISHED,
                 RoomEventType.PLAYBACK_SKIPPED,
-                RoomEventType.QUEUE_CHANGED);
+                RoomEventType.QUEUE_CHANGED,
+                RoomEventType.PLAYER_CHANGED);
     }
 }
