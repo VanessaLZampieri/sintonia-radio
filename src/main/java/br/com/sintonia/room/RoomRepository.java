@@ -22,4 +22,6 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
 
     @Query("SELECT r.id FROM Room r WHERE r.status = :status AND r.emptySince IS NOT NULL AND r.emptySince <= :threshold")
     List<Long> findExpiredCandidateIds(@Param("status") RoomStatus status, @Param("threshold") Instant threshold);
+
+    List<Room> findByPlayerClientSessionId(String playerClientSessionId);
 }

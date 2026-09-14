@@ -53,6 +53,10 @@ public class RoomPlayerService {
             throw new RoomClosedException("Esta sala foi encerrada.");
         }
 
+        if (room.getPlaybackMode() != PlaybackMode.CAIXA_DE_MUSICA) {
+            throw new ClaimNotAllowedException("Claim de player só é permitido no modo CAIXA_DE_MUSICA.");
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("Usuário não encontrado."));
 
@@ -99,6 +103,22 @@ public class RoomPlayerService {
                 new RoomEvent(RoomEventType.PLAYER_CHANGED, roomId,
                         new PlayerChangedEventPayload(null, null)));
         return RoomPlayerResponse.from(room);
+    }
+
+    @Transactional
+    public void releaseByClientSessionId(String clientSessionId) {
+        for (Room room : roomRepository.findByPlayerClientSessionId(clientSessionId)) {
+            Room locked = roomRepository.findByIdForUpdate(room.getId()).orElse(null);
+            if (locked == null) {
+                continue;
+            }
+            if (clientSessionId.equals(locked.getPlayerClientSessionId())) {
+                locked.release();
+                roomEventPublisher.publish(locked.getCode(),
+                        new RoomEvent(RoomEventType.PLAYER_CHANGED, locked.getId(),
+                                new PlayerChangedEventPayload(null, null)));
+            }
+        }
     }
 
     private void validateClientSessionId(String clientSessionId) {

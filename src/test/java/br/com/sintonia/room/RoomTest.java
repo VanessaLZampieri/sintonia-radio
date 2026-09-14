@@ -52,6 +52,22 @@ class RoomTest {
     }
 
     @Test
+    void newRoomDefaultsToTodosOsNavegadores() {
+        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+
+        assertThat(room.getPlaybackMode()).isEqualTo(PlaybackMode.TODOS_OS_NAVEGADORES);
+    }
+
+    @Test
+    void changePlaybackModeUpdatesMode() {
+        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+
+        room.changePlaybackMode(PlaybackMode.CAIXA_DE_MUSICA);
+
+        assertThat(room.getPlaybackMode()).isEqualTo(PlaybackMode.CAIXA_DE_MUSICA);
+    }
+
+    @Test
     void newRoomHasNoPlayer() {
         Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
 

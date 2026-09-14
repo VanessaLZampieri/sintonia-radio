@@ -13,9 +13,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
+import java.util.Objects;
 
 @Entity
 @Table(
@@ -47,6 +49,11 @@ public class Room {
     @Column(name = "empty_since")
     private Instant emptySince;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "playback_mode", nullable = false)
+    @ColumnDefault("'TODOS_OS_NAVEGADORES'")
+    private PlaybackMode playbackMode;
+
     @Column(name = "player_client_session_id")
     private String playerClientSessionId;
 
@@ -60,6 +67,7 @@ public class Room {
     public Room(String code, RoomStatus status) {
         this.code = code;
         this.status = status;
+        this.playbackMode = PlaybackMode.TODOS_OS_NAVEGADORES;
     }
 
     protected Room() {
@@ -89,6 +97,10 @@ public class Room {
         return emptySince;
     }
 
+    public PlaybackMode getPlaybackMode() {
+        return playbackMode;
+    }
+
     public String getPlayerClientSessionId() {
         return playerClientSessionId;
     }
@@ -113,6 +125,10 @@ public class Room {
         this.status = RoomStatus.CLOSED;
         this.closedAt = Instant.now();
         this.emptySince = null;
+    }
+
+    public void changePlaybackMode(PlaybackMode playbackMode) {
+        this.playbackMode = Objects.requireNonNull(playbackMode, "playbackMode não pode ser nulo");
     }
 
     public void claim(String clientSessionId, User user) {

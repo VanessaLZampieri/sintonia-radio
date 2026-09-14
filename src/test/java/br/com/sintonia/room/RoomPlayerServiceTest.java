@@ -18,6 +18,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Constructor;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,6 +58,7 @@ class RoomPlayerServiceTest {
     @BeforeEach
     void setUp() {
         room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        room.changePlaybackMode(PlaybackMode.CAIXA_DE_MUSICA);
         ReflectionTestUtils.setField(room, "id", ROOM_ID);
         user = newUser(USER_ID);
     }
@@ -139,6 +141,40 @@ class RoomPlayerServiceTest {
                 .isInstanceOf(InvalidClientSessionIdException.class);
         assertThatThrownBy(() -> roomPlayerService.claim(ROOM_ID, "abc", USER_ID))
                 .isInstanceOf(InvalidClientSessionIdException.class);
+    }
+
+    @Test
+    void claimRejectedInTodosOsNavegadoresMode() {
+        Room todosRoom = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(todosRoom));
+
+        assertThatThrownBy(() -> roomPlayerService.claim(ROOM_ID, SESSION_ID, USER_ID))
+                .isInstanceOf(ClaimNotAllowedException.class);
+
+        verifyNoInteractions(roomEventPublisher);
+    }
+
+    @Test
+    void releaseByClientSessionIdReleasesPlayer() {
+        makePlayer(SESSION_ID);
+        when(roomRepository.findByPlayerClientSessionId(SESSION_ID)).thenReturn(List.of(room));
+        when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
+
+        roomPlayerService.releaseByClientSessionId(SESSION_ID);
+
+        assertThat(room.getPlayerClientSessionId()).isNull();
+        ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
+        verify(roomEventPublisher).publish(eq("ABCDEFGH"), captor.capture());
+        assertThat(captor.getValue().eventType()).isEqualTo(RoomEventType.PLAYER_CHANGED);
+    }
+
+    @Test
+    void releaseByClientSessionIdNoOpWhenNotPlayer() {
+        when(roomRepository.findByPlayerClientSessionId(SESSION_ID)).thenReturn(List.of());
+
+        roomPlayerService.releaseByClientSessionId(SESSION_ID);
+
+        verifyNoInteractions(roomEventPublisher);
     }
 
     @Test

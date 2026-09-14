@@ -1,5 +1,6 @@
 package br.com.sintonia.exception;
 
+import br.com.sintonia.room.ClaimNotAllowedException;
 import br.com.sintonia.room.InvalidClientSessionIdException;
 import br.com.sintonia.room.NotThePlayerException;
 import br.com.sintonia.room.PlayerAlreadyClaimedException;
@@ -98,6 +99,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotThePlayerException.class)
     public ResponseEntity<Map<String, String>> handleNotThePlayer(NotThePlayerException exception) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(ClaimNotAllowedException.class)
+    public ResponseEntity<Map<String, String>> handleClaimNotAllowed(ClaimNotAllowedException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("message", exception.getMessage()));
     }
 }
