@@ -8,6 +8,9 @@ import br.com.sintonia.room.RoomClosedException;
 import br.com.sintonia.room.RoomFullException;
 import br.com.sintonia.room.RoomNotFoundException;
 import br.com.sintonia.room.UserNotInRoomException;
+import br.com.sintonia.playback.PlaybackNotFoundException;
+import br.com.sintonia.playback.PlaybackNotPlayingException;
+import br.com.sintonia.playback.SkipVoteAlreadyExistsException;
 import br.com.sintonia.queue.SongAlreadyInQueueException;
 import br.com.sintonia.queue.QueueItemNotFoundException;
 import br.com.sintonia.queue.QueueLimitExceededException;
@@ -104,6 +107,24 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ClaimNotAllowedException.class)
     public ResponseEntity<Map<String, String>> handleClaimNotAllowed(ClaimNotAllowedException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PlaybackNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handlePlaybackNotFound(PlaybackNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PlaybackNotPlayingException.class)
+    public ResponseEntity<Map<String, String>> handlePlaybackNotPlaying(PlaybackNotPlayingException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(SkipVoteAlreadyExistsException.class)
+    public ResponseEntity<Map<String, String>> handleSkipVoteAlreadyExists(SkipVoteAlreadyExistsException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("message", exception.getMessage()));
     }

@@ -34,7 +34,7 @@ class RoomStateControllerTest {
     void getsRoomState() throws Exception {
         RoomStateResponse response = new RoomStateResponse(
                 ROOM_ID, "ABCDEFGH", RoomStatus.ACTIVE, PlaybackMode.TODOS_OS_NAVEGADORES,
-                null, null, List.of());
+                null, null, List.of(), null);
         when(roomStateService.get(ROOM_ID)).thenReturn(response);
 
         mockMvc.perform(get("/api/rooms/{roomId}/state", ROOM_ID))

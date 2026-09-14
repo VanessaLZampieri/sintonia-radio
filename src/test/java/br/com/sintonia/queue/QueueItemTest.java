@@ -29,6 +29,16 @@ class QueueItemTest {
         assertThat(item.getUser()).isSameAs(user);
         assertThat(item.getAddedAt()).isEqualTo(addedAt);
         assertThat(item.getPosition()).isEqualTo(1);
+        assertThat(item.getSource()).isEqualTo(QueueItemSource.USER);
+    }
+
+    @Test
+    void autoDjItemHasNullUserAndAutoDjSource() {
+        QueueItem item = new QueueItem(room, song, addedAt, 1);
+
+        assertThat(item.getUser()).isNull();
+        assertThat(item.getSource()).isEqualTo(QueueItemSource.AUTO_DJ);
+        assertThat(item.getStatus()).isEqualTo(QueueItemStatus.WAITING);
     }
 
     @Test

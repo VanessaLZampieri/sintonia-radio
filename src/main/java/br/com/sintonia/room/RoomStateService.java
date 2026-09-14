@@ -3,6 +3,8 @@ package br.com.sintonia.room;
 import br.com.sintonia.playback.Playback;
 import br.com.sintonia.playback.PlaybackRepository;
 import br.com.sintonia.playback.PlaybackStatus;
+import br.com.sintonia.playback.SkipVoteRepository;
+import br.com.sintonia.playback.SkipVoteService;
 import br.com.sintonia.queue.QueueItem;
 import br.com.sintonia.queue.QueueItemRepository;
 import br.com.sintonia.song.Song;
@@ -10,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class RoomStateService {
@@ -17,13 +20,19 @@ public class RoomStateService {
     private final RoomRepository roomRepository;
     private final PlaybackRepository playbackRepository;
     private final QueueItemRepository queueItemRepository;
+    private final RoomMemberRepository roomMemberRepository;
+    private final SkipVoteRepository skipVoteRepository;
 
     public RoomStateService(RoomRepository roomRepository,
                             PlaybackRepository playbackRepository,
-                            QueueItemRepository queueItemRepository) {
+                            QueueItemRepository queueItemRepository,
+                            RoomMemberRepository roomMemberRepository,
+                            SkipVoteRepository skipVoteRepository) {
         this.roomRepository = roomRepository;
         this.playbackRepository = playbackRepository;
         this.queueItemRepository = queueItemRepository;
+        this.roomMemberRepository = roomMemberRepository;
+        this.skipVoteRepository = skipVoteRepository;
     }
 
     @Transactional(readOnly = true)
@@ -35,14 +44,17 @@ public class RoomStateService {
             throw new RoomClosedException("Esta sala foi encerrada.");
         }
 
+        Optional<Playback> playing = playbackRepository.findByQueueItemRoomIdAndStatus(roomId, PlaybackStatus.PLAYING);
+
         return new RoomStateResponse(
                 room.getId(),
                 room.getCode(),
                 room.getStatus(),
                 room.getPlaybackMode(),
                 playerState(room),
-                playbackState(roomId),
-                queueState(roomId));
+                playing.map(this::toPlaybackState).orElse(null),
+                queueState(roomId),
+                playing.map(p -> skipVoteState(room, p)).orElse(null));
     }
 
     private RoomStateResponse.PlayerState playerState(Room room) {
@@ -55,12 +67,6 @@ public class RoomStateService {
                 room.getPlayerAssumedAt());
     }
 
-    private RoomStateResponse.PlaybackState playbackState(Long roomId) {
-        return playbackRepository.findByQueueItemRoomIdAndStatus(roomId, PlaybackStatus.PLAYING)
-                .map(this::toPlaybackState)
-                .orElse(null);
-    }
-
     private RoomStateResponse.PlaybackState toPlaybackState(Playback playback) {
         QueueItem item = playback.getQueueItem();
         return new RoomStateResponse.PlaybackState(
@@ -68,7 +74,8 @@ public class RoomStateService {
                 item.getId(),
                 playback.getStartedAt(),
                 songState(item.getSong()),
-                item.getUser().getId());
+                item.getUser() == null ? null : item.getUser().getId(),
+                item.getSource());
     }
 
     private List<RoomStateResponse.QueueItemState> queueState(Long roomId) {
@@ -83,7 +90,14 @@ public class RoomStateService {
                 item.getPosition(),
                 item.getStatus(),
                 songState(item.getSong()),
-                item.getUser().getId());
+                item.getUser() == null ? null : item.getUser().getId(),
+                item.getSource());
+    }
+
+    private RoomStateResponse.SkipVoteState skipVoteState(Room room, Playback playback) {
+        long participants = roomMemberRepository.countByRoomAndLeftAtIsNull(room);
+        long votes = skipVoteRepository.countByPlaybackId(playback.getId());
+        return new RoomStateResponse.SkipVoteState(votes, SkipVoteService.requiredVotes(participants));
     }
 
     private RoomStateResponse.SongState songState(Song song) {

@@ -14,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -34,8 +35,8 @@ public class QueueItem {
     @JoinColumn(name = "song_id", nullable = false)
     private Song song;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
 
     @Column(name = "added_at", nullable = false)
@@ -48,16 +49,32 @@ public class QueueItem {
     @Column(nullable = false)
     private QueueItemStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @ColumnDefault("'USER'")
+    private QueueItemSource source;
+
     public QueueItem(Room room, Song song, User user, Instant addedAt, Integer position) {
+        this(room, song, user, addedAt, position, QueueItemSource.USER);
+    }
+
+    public QueueItem(Room room, Song song, Instant addedAt, Integer position) {
+        this(room, song, null, addedAt, position, QueueItemSource.AUTO_DJ);
+    }
+
+    private QueueItem(Room room, Song song, User user, Instant addedAt, Integer position, QueueItemSource source) {
         this.room = Objects.requireNonNull(room, "room não pode ser nulo");
         this.song = Objects.requireNonNull(song, "song não pode ser nulo");
-        this.user = Objects.requireNonNull(user, "user não pode ser nulo");
+        this.user = source == QueueItemSource.USER
+                ? Objects.requireNonNull(user, "user não pode ser nulo")
+                : null;
         this.addedAt = Objects.requireNonNull(addedAt, "addedAt não pode ser nulo");
         this.position = Objects.requireNonNull(position, "position não pode ser nulo");
         if (position < 1) {
             throw new IllegalArgumentException("position deve ser maior ou igual a 1");
         }
         this.status = QueueItemStatus.WAITING;
+        this.source = Objects.requireNonNull(source, "source não pode ser nulo");
     }
 
     protected QueueItem() {
@@ -89,6 +106,10 @@ public class QueueItem {
 
     public QueueItemStatus getStatus() {
         return status;
+    }
+
+    public QueueItemSource getSource() {
+        return source;
     }
 
     public void setStatus(QueueItemStatus status) {

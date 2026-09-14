@@ -63,6 +63,9 @@ class PlaybackServiceTest {
     @Mock
     private RoomEventPublisher roomEventPublisher;
 
+    @Mock
+    private AutoDjService autoDjService;
+
     @InjectMocks
     private PlaybackService playbackService;
 
@@ -559,6 +562,64 @@ class PlaybackServiceTest {
         assertThat(events).hasSize(2);
         assertThat(events.get(0).eventType()).isEqualTo(RoomEventType.PLAYBACK_SKIPPED);
         assertThat(events.get(1).eventType()).isEqualTo(RoomEventType.PLAYBACK_STARTED);
+    }
+
+    @Test
+    void startNextInvokesAutoDjWhenQueueEmpty() {
+        when(queueService.findNextWaiting(ROOM_ID)).thenReturn(Optional.empty());
+        QueueItem autoItem = waitingQueueItem();
+        when(autoDjService.createNext(ROOM_ID)).thenReturn(Optional.of(autoItem));
+        stubHappyPath(autoItem);
+
+        playbackService.startNext(ROOM_ID);
+
+        verify(autoDjService).createNext(ROOM_ID);
+        verify(queueItemRepository).findByIdAndRoomId(QUEUE_ITEM_ID, ROOM_ID);
+    }
+
+    @Test
+    void errorMarksPlaybackError() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        stubFinishHappyPath(playback);
+
+        playbackService.error(PLAYBACK_ID);
+
+        assertThat(playback.getStatus()).isEqualTo(PlaybackStatus.ERROR);
+        assertThat(playback.getEndedAt()).isNotNull();
+        assertThat(queueItem.getStatus()).isEqualTo(QueueItemStatus.ERROR);
+    }
+
+    @Test
+    void errorPublishesPlaybackErrorEvent() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        stubFinishHappyPath(playback);
+
+        playbackService.error(PLAYBACK_ID);
+
+        ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
+        verify(roomEventPublisher).publish(eq("ABCDEFGH"), captor.capture());
+        assertThat(captor.getValue().eventType()).isEqualTo(RoomEventType.PLAYBACK_ERROR);
+    }
+
+    @Test
+    void errorThrowsWhenPlaybackNotFound() {
+        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> playbackService.error(PLAYBACK_ID))
+                .isInstanceOf(PlaybackNotFoundException.class);
+    }
+
+    @Test
+    void errorThrowsWhenPlaybackNotPlaying() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        playback.setStatus(PlaybackStatus.FINISHED);
+        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+
+        assertThatThrownBy(() -> playbackService.error(PLAYBACK_ID))
+                .isInstanceOf(PlaybackNotPlayingException.class);
     }
 
     private QueueItem stubStartNextHappyPath() {

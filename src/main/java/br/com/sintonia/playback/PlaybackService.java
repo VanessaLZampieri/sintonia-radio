@@ -28,17 +28,20 @@ public class PlaybackService {
     private final PlaybackRepository playbackRepository;
     private final QueueService queueService;
     private final RoomEventPublisher roomEventPublisher;
+    private final AutoDjService autoDjService;
 
     public PlaybackService(RoomRepository roomRepository,
                            QueueItemRepository queueItemRepository,
                            PlaybackRepository playbackRepository,
                            QueueService queueService,
-                           RoomEventPublisher roomEventPublisher) {
+                           RoomEventPublisher roomEventPublisher,
+                           AutoDjService autoDjService) {
         this.roomRepository = roomRepository;
         this.queueItemRepository = queueItemRepository;
         this.playbackRepository = playbackRepository;
         this.queueService = queueService;
         this.roomEventPublisher = roomEventPublisher;
+        this.autoDjService = autoDjService;
     }
 
     @Transactional
@@ -78,11 +81,12 @@ public class PlaybackService {
     @Transactional
     public Optional<Playback> startNext(Long roomId) {
         Optional<QueueItem> next = queueService.findNextWaiting(roomId);
-
+        if (next.isEmpty()) {
+            next = autoDjService.createNext(roomId);
+        }
         if (next.isEmpty()) {
             return Optional.empty();
         }
-
         return Optional.of(start(roomId, next.get().getId()));
     }
 
@@ -135,6 +139,34 @@ public class PlaybackService {
         Room room = queueItem.getRoom();
         roomEventPublisher.publish(room.getCode(),
                 new RoomEvent(RoomEventType.PLAYBACK_SKIPPED, room.getId(),
+                        new PlaybackEventPayload(playbackId, queueItem.getId())));
+
+        startNext(room.getId());
+
+        return playback;
+    }
+
+    @Transactional
+    public Playback error(Long playbackId) {
+        Playback playback = playbackRepository.findById(playbackId)
+                .orElseThrow(() -> new PlaybackNotFoundException("Playback não encontrado."));
+
+        if (playback.getStatus() != PlaybackStatus.PLAYING) {
+            throw new PlaybackNotPlayingException("O playback não está em andamento.");
+        }
+
+        playback.setStatus(PlaybackStatus.ERROR);
+        playback.setEndedAt(Instant.now());
+
+        QueueItem queueItem = playback.getQueueItem();
+        queueItem.setStatus(QueueItemStatus.ERROR);
+
+        playbackRepository.save(playback);
+        queueItemRepository.save(queueItem);
+
+        Room room = queueItem.getRoom();
+        roomEventPublisher.publish(room.getCode(),
+                new RoomEvent(RoomEventType.PLAYBACK_ERROR, room.getId(),
                         new PlaybackEventPayload(playbackId, queueItem.getId())));
 
         startNext(room.getId());

@@ -3,8 +3,10 @@ package br.com.sintonia.room;
 import br.com.sintonia.playback.Playback;
 import br.com.sintonia.playback.PlaybackRepository;
 import br.com.sintonia.playback.PlaybackStatus;
+import br.com.sintonia.playback.SkipVoteRepository;
 import br.com.sintonia.queue.QueueItem;
 import br.com.sintonia.queue.QueueItemRepository;
+import br.com.sintonia.queue.QueueItemSource;
 import br.com.sintonia.song.Song;
 import br.com.sintonia.user.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +43,12 @@ class RoomStateServiceTest {
     @Mock
     private QueueItemRepository queueItemRepository;
 
+    @Mock
+    private RoomMemberRepository roomMemberRepository;
+
+    @Mock
+    private SkipVoteRepository skipVoteRepository;
+
     @InjectMocks
     private RoomStateService roomStateService;
 
@@ -71,6 +79,7 @@ class RoomStateServiceTest {
         assertThat(result.player()).isNull();
         assertThat(result.currentPlayback()).isNull();
         assertThat(result.queue()).isEmpty();
+        assertThat(result.skipVote()).isNull();
     }
 
     @Test
@@ -126,6 +135,26 @@ class RoomStateServiceTest {
         assertThat(result.queue().get(0).song().youtubeVideoId()).isEqualTo("abc123");
         assertThat(result.queue().get(0).song().duration()).isEqualTo("PT3M33S");
         assertThat(result.queue().get(0).addedByUserId()).isEqualTo(USER_ID);
+        assertThat(result.queue().get(0).source()).isEqualTo(QueueItemSource.USER);
+    }
+
+    @Test
+    void snapshotWithSkipVotes() {
+        QueueItem item = buildQueueItem(1);
+        Playback playback = new Playback(item, Instant.parse("2026-09-09T18:30:00Z"));
+        ReflectionTestUtils.setField(playback, "id", 100L);
+
+        stubRoom();
+        when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING)).thenReturn(Optional.of(playback));
+        when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of());
+        when(roomMemberRepository.countByRoomAndLeftAtIsNull(room)).thenReturn(5L);
+        when(skipVoteRepository.countByPlaybackId(100L)).thenReturn(2L);
+
+        RoomStateResponse result = roomStateService.get(ROOM_ID);
+
+        assertThat(result.skipVote()).isNotNull();
+        assertThat(result.skipVote().votes()).isEqualTo(2);
+        assertThat(result.skipVote().requiredVotes()).isEqualTo(3);
     }
 
     @Test
