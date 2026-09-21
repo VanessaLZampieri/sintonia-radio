@@ -1,0 +1,30 @@
+# Controle de versão
+.git
+.gitignore
+
+# Builds gerados
+target/
+frontend/dist/
+src/main/resources/static/
+
+# Dependências instaladas
+frontend/node_modules/
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+.factorypath
+.apt_generated
+.sts4-cache
+bin/
+
+# SO / temporários
+.DS_Store
+Thumbs.db
+*.log
