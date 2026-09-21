@@ -1,5 +1,7 @@
 package br.com.sintonia.room;
 
+import br.com.sintonia.security.SintoniaOAuth2User;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,8 +26,10 @@ public class RoomPlayerController {
     }
 
     @PostMapping("/{roomId}/player")
-    public RoomPlayerResponse claim(@PathVariable Long roomId, @RequestBody ClaimPlayerRequest request) {
-        return roomPlayerService.claim(roomId, request.clientSessionId(), request.userId());
+    public RoomPlayerResponse claim(@PathVariable Long roomId,
+                                    @RequestBody ClaimPlayerRequest request,
+                                    @AuthenticationPrincipal SintoniaOAuth2User principal) {
+        return roomPlayerService.claim(roomId, request.clientSessionId(), principal.getUserId());
     }
 
     @DeleteMapping("/{roomId}/player")

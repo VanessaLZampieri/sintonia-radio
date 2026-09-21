@@ -25,3 +25,7 @@ bin/
 ### OS ###
 Thumbs.db
 .DS_Store
+
+### Frontend ###
+frontend/node_modules/
+src/main/resources/static/

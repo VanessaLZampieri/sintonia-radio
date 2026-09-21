@@ -1,5 +1,7 @@
 package br.com.sintonia.room;
 
+import br.com.sintonia.security.SintoniaOAuth2User;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,7 +18,8 @@ public class RoomStateController {
     }
 
     @GetMapping("/{roomId}/state")
-    public RoomStateResponse get(@PathVariable Long roomId) {
-        return roomStateService.get(roomId);
+    public RoomStateResponse get(@PathVariable Long roomId,
+                                 @AuthenticationPrincipal SintoniaOAuth2User principal) {
+        return roomStateService.get(roomId, principal.getUserId());
     }
 }

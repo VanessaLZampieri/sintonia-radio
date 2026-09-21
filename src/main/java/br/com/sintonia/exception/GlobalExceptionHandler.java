@@ -8,9 +8,12 @@ import br.com.sintonia.room.RoomClosedException;
 import br.com.sintonia.room.RoomFullException;
 import br.com.sintonia.room.RoomNotFoundException;
 import br.com.sintonia.room.UserNotInRoomException;
+import br.com.sintonia.playback.PlaybackAlreadyInProgressException;
+import br.com.sintonia.playback.PlaybackCommandNotAllowedException;
 import br.com.sintonia.playback.PlaybackNotFoundException;
 import br.com.sintonia.playback.PlaybackNotPlayingException;
 import br.com.sintonia.playback.SkipVoteAlreadyExistsException;
+import br.com.sintonia.playback.QueueItemNotWaitingException;
 import br.com.sintonia.queue.SongAlreadyInQueueException;
 import br.com.sintonia.queue.QueueItemNotFoundException;
 import br.com.sintonia.queue.QueueLimitExceededException;
@@ -125,6 +128,24 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(SkipVoteAlreadyExistsException.class)
     public ResponseEntity<Map<String, String>> handleSkipVoteAlreadyExists(SkipVoteAlreadyExistsException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PlaybackAlreadyInProgressException.class)
+    public ResponseEntity<Map<String, String>> handlePlaybackAlreadyInProgress(PlaybackAlreadyInProgressException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(QueueItemNotWaitingException.class)
+    public ResponseEntity<Map<String, String>> handleQueueItemNotWaiting(QueueItemNotWaitingException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PlaybackCommandNotAllowedException.class)
+    public ResponseEntity<Map<String, String>> handlePlaybackCommandNotAllowed(PlaybackCommandNotAllowedException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("message", exception.getMessage()));
     }

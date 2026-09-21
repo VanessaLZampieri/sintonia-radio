@@ -1,6 +1,8 @@
 package br.com.sintonia.room;
 
+import br.com.sintonia.security.SintoniaOAuth2User;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -25,10 +27,12 @@ public class RoomPlaybackModeController {
     }
 
     @PutMapping("/{roomId}/playback-mode")
-    public PlaybackModeResponse change(@PathVariable Long roomId, @RequestBody ChangePlaybackModeRequest request) {
+    public PlaybackModeResponse change(@PathVariable Long roomId,
+                                       @RequestBody ChangePlaybackModeRequest request,
+                                       @AuthenticationPrincipal SintoniaOAuth2User principal) {
         if (request.mode() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "mode é obrigatório.");
         }
-        return roomPlaybackModeService.change(roomId, request.mode());
+        return roomPlaybackModeService.change(roomId, request.mode(), principal.getUserId());
     }
 }

@@ -6,10 +6,14 @@ import br.com.sintonia.queue.QueueItemRepository;
 import br.com.sintonia.queue.QueueItemStatus;
 import br.com.sintonia.queue.QueueService;
 import br.com.sintonia.room.Room;
+import br.com.sintonia.room.NotThePlayerException;
+import br.com.sintonia.room.PlaybackMode;
 import br.com.sintonia.room.RoomClosedException;
+import br.com.sintonia.room.RoomMemberRepository;
 import br.com.sintonia.room.RoomNotFoundException;
 import br.com.sintonia.room.RoomRepository;
 import br.com.sintonia.room.RoomStatus;
+import br.com.sintonia.room.UserNotInRoomException;
 import br.com.sintonia.song.Song;
 import br.com.sintonia.user.User;
 import br.com.sintonia.websocket.PlaybackEventPayload;
@@ -23,6 +27,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,11 +48,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class PlaybackServiceTest {
 
     private static final Long ROOM_ID = 1L;
     private static final Long QUEUE_ITEM_ID = 42L;
     private static final Long PLAYBACK_ID = 101L;
+    private static final Long USER_ID = 456L;
+    private static final String SESSION_ID = "550e8400-e29b-41d4-a716-446655440000";
 
     @Mock
     private RoomRepository roomRepository;
@@ -56,6 +65,9 @@ class PlaybackServiceTest {
 
     @Mock
     private PlaybackRepository playbackRepository;
+
+    @Mock
+    private RoomMemberRepository roomMemberRepository;
 
     @Mock
     private QueueService queueService;
@@ -203,7 +215,7 @@ class PlaybackServiceTest {
         Playback playback = new Playback(queueItem, Instant.now());
         stubFinishHappyPath(playback);
 
-        Playback result = playbackService.finish(PLAYBACK_ID);
+        Playback result = playbackService.finish(PLAYBACK_ID, USER_ID, null);
 
         assertThat(result).isSameAs(playback);
     }
@@ -214,7 +226,7 @@ class PlaybackServiceTest {
         Playback playback = new Playback(queueItem, Instant.now());
         stubFinishHappyPath(playback);
 
-        Playback result = playbackService.finish(PLAYBACK_ID);
+        Playback result = playbackService.finish(PLAYBACK_ID, USER_ID, null);
 
         assertThat(result.getStatus()).isEqualTo(PlaybackStatus.FINISHED);
     }
@@ -225,7 +237,7 @@ class PlaybackServiceTest {
         Playback playback = new Playback(queueItem, Instant.now());
         stubFinishHappyPath(playback);
 
-        Playback result = playbackService.finish(PLAYBACK_ID);
+        Playback result = playbackService.finish(PLAYBACK_ID, USER_ID, null);
 
         assertThat(result.getEndedAt()).isNotNull();
     }
@@ -236,16 +248,16 @@ class PlaybackServiceTest {
         Playback playback = new Playback(queueItem, Instant.now());
         stubFinishHappyPath(playback);
 
-        playbackService.finish(PLAYBACK_ID);
+        playbackService.finish(PLAYBACK_ID, USER_ID, null);
 
         assertThat(queueItem.getStatus()).isEqualTo(QueueItemStatus.FINISHED);
     }
 
     @Test
     void throwsWhenPlaybackNotFound() {
-        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.empty());
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> playbackService.finish(PLAYBACK_ID))
+        assertThatThrownBy(() -> playbackService.finish(PLAYBACK_ID, USER_ID, null))
                 .isInstanceOf(PlaybackNotFoundException.class);
     }
 
@@ -254,9 +266,9 @@ class PlaybackServiceTest {
         QueueItem queueItem = playingQueueItem();
         Playback playback = new Playback(queueItem, Instant.now());
         playback.setStatus(PlaybackStatus.FINISHED);
-        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
 
-        assertThatThrownBy(() -> playbackService.finish(PLAYBACK_ID))
+        assertThatThrownBy(() -> playbackService.finish(PLAYBACK_ID, USER_ID, null))
                 .isInstanceOf(PlaybackNotPlayingException.class);
 
         verify(queueItemRepository, never()).save(any(QueueItem.class));
@@ -264,7 +276,7 @@ class PlaybackServiceTest {
 
     @Test
     void finishIsTransactional() throws NoSuchMethodException {
-        Method method = PlaybackService.class.getMethod("finish", Long.class);
+        Method method = PlaybackService.class.getMethod("finish", Long.class, Long.class, String.class);
 
         assertThat(method.isAnnotationPresent(Transactional.class)).isTrue();
     }
@@ -315,7 +327,7 @@ class PlaybackServiceTest {
 
     @Test
     void throwsWhenPlaybackNotFoundForSkip() {
-        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.empty());
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> playbackService.skip(PLAYBACK_ID))
                 .isInstanceOf(PlaybackNotFoundException.class);
@@ -326,7 +338,7 @@ class PlaybackServiceTest {
         QueueItem queueItem = playingQueueItem();
         Playback playback = new Playback(queueItem, Instant.now());
         playback.setStatus(PlaybackStatus.FINISHED);
-        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
 
         assertThatThrownBy(() -> playbackService.skip(PLAYBACK_ID))
                 .isInstanceOf(PlaybackNotPlayingException.class);
@@ -347,7 +359,7 @@ class PlaybackServiceTest {
         Playback playback = new Playback(queueItem, Instant.now());
         stubFinishHappyPath(playback);
 
-        playbackService.finish(PLAYBACK_ID);
+        playbackService.finish(PLAYBACK_ID, USER_ID, null);
 
         verify(queueService).findNextWaiting(ROOM_ID);
     }
@@ -356,7 +368,8 @@ class PlaybackServiceTest {
     void finishStartsNextPlaybackWhenWaitingItemExists() {
         QueueItem current = playingQueueItem();
         Playback playback = new Playback(current, Instant.now());
-        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
 
         QueueItem nextRef = mock(QueueItem.class);
         when(nextRef.getId()).thenReturn(QUEUE_ITEM_ID);
@@ -365,7 +378,7 @@ class PlaybackServiceTest {
         QueueItem actualNext = waitingQueueItem();
         stubHappyPath(actualNext);
 
-        playbackService.finish(PLAYBACK_ID);
+        playbackService.finish(PLAYBACK_ID, USER_ID, null);
 
         assertThat(current.getStatus()).isEqualTo(QueueItemStatus.FINISHED);
         assertThat(actualNext.getStatus()).isEqualTo(QueueItemStatus.PLAYING);
@@ -375,7 +388,7 @@ class PlaybackServiceTest {
     void skipStartsNextPlaybackWhenWaitingItemExists() {
         QueueItem current = playingQueueItem();
         Playback playback = new Playback(current, Instant.now());
-        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
 
         QueueItem nextRef = mock(QueueItem.class);
         when(nextRef.getId()).thenReturn(QUEUE_ITEM_ID);
@@ -494,7 +507,7 @@ class PlaybackServiceTest {
         Playback playback = new Playback(queueItem, Instant.now());
         stubFinishHappyPath(playback);
 
-        playbackService.finish(PLAYBACK_ID);
+        playbackService.finish(PLAYBACK_ID, USER_ID, null);
 
         ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
         verify(roomEventPublisher).publish(eq("ABCDEFGH"), captor.capture());
@@ -522,7 +535,8 @@ class PlaybackServiceTest {
     void finishWithNextItemPublishesFinishedThenStarted() {
         QueueItem current = playingQueueItem();
         Playback playback = new Playback(current, Instant.now());
-        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
 
         QueueItem nextRef = mock(QueueItem.class);
         when(nextRef.getId()).thenReturn(QUEUE_ITEM_ID);
@@ -531,7 +545,7 @@ class PlaybackServiceTest {
         QueueItem actualNext = waitingQueueItem();
         stubHappyPath(actualNext);
 
-        playbackService.finish(PLAYBACK_ID);
+        playbackService.finish(PLAYBACK_ID, USER_ID, null);
 
         ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
         verify(roomEventPublisher, times(2)).publish(eq("ABCDEFGH"), captor.capture());
@@ -545,7 +559,7 @@ class PlaybackServiceTest {
     void skipWithNextItemPublishesSkippedThenStarted() {
         QueueItem current = playingQueueItem();
         Playback playback = new Playback(current, Instant.now());
-        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
 
         QueueItem nextRef = mock(QueueItem.class);
         when(nextRef.getId()).thenReturn(QUEUE_ITEM_ID);
@@ -578,12 +592,99 @@ class PlaybackServiceTest {
     }
 
     @Test
+    void ensurePlaybackStartsWaitingItemWhenIdle() {
+        QueueItem nextRef = mock(QueueItem.class);
+        when(nextRef.getId()).thenReturn(QUEUE_ITEM_ID);
+        when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
+        when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING))
+                .thenReturn(Optional.empty());
+        when(queueService.findNextWaiting(ROOM_ID)).thenReturn(Optional.of(nextRef));
+        QueueItem actualNext = waitingQueueItem();
+        stubHappyPath(actualNext);
+
+        Optional<Playback> result = playbackService.ensurePlayback(ROOM_ID);
+
+        assertThat(result).isPresent();
+        assertThat(actualNext.getStatus()).isEqualTo(QueueItemStatus.PLAYING);
+        verify(playbackRepository).save(any(Playback.class));
+    }
+
+    @Test
+    void ensurePlaybackDoesNothingWhenAlreadyPlaying() {
+        QueueItem queueItem = waitingQueueItem();
+        Playback existing = new Playback(queueItem, Instant.now());
+        when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
+        when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING))
+                .thenReturn(Optional.of(existing));
+
+        Optional<Playback> result = playbackService.ensurePlayback(ROOM_ID);
+
+        assertThat(result).isEmpty();
+        verify(queueService, never()).findNextWaiting(ROOM_ID);
+        verify(playbackRepository, never()).save(any(Playback.class));
+        verify(queueItemRepository, never()).save(any(QueueItem.class));
+    }
+
+    @Test
+    void ensurePlaybackDoesNothingWhenNoWaitingItem() {
+        when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
+        when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING))
+                .thenReturn(Optional.empty());
+        when(queueService.findNextWaiting(ROOM_ID)).thenReturn(Optional.empty());
+
+        Optional<Playback> result = playbackService.ensurePlayback(ROOM_ID);
+
+        assertThat(result).isEmpty();
+        verify(playbackRepository, never()).save(any(Playback.class));
+    }
+
+    @Test
+    void ensurePlaybackNeverCreatesAutoDj() {
+        QueueItem nextRef = mock(QueueItem.class);
+        when(nextRef.getId()).thenReturn(QUEUE_ITEM_ID);
+        when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
+        when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING))
+                .thenReturn(Optional.empty());
+        when(queueService.findNextWaiting(ROOM_ID)).thenReturn(Optional.of(nextRef));
+        QueueItem actualNext = waitingQueueItem();
+        stubHappyPath(actualNext);
+
+        playbackService.ensurePlayback(ROOM_ID);
+
+        verify(autoDjService, never()).createNext(any());
+    }
+
+    @Test
+    void ensurePlaybackThrowsWhenRoomDoesNotExist() {
+        when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> playbackService.ensurePlayback(ROOM_ID))
+                .isInstanceOf(RoomNotFoundException.class);
+    }
+
+    @Test
+    void ensurePlaybackThrowsWhenRoomIsClosed() {
+        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(closedRoom));
+
+        assertThatThrownBy(() -> playbackService.ensurePlayback(ROOM_ID))
+                .isInstanceOf(RoomClosedException.class);
+    }
+
+    @Test
+    void ensurePlaybackIsTransactional() throws NoSuchMethodException {
+        Method method = PlaybackService.class.getMethod("ensurePlayback", Long.class);
+
+        assertThat(method.isAnnotationPresent(Transactional.class)).isTrue();
+    }
+
+    @Test
     void errorMarksPlaybackError() {
         QueueItem queueItem = playingQueueItem();
         Playback playback = new Playback(queueItem, Instant.now());
         stubFinishHappyPath(playback);
 
-        playbackService.error(PLAYBACK_ID);
+        playbackService.error(PLAYBACK_ID, USER_ID, null);
 
         assertThat(playback.getStatus()).isEqualTo(PlaybackStatus.ERROR);
         assertThat(playback.getEndedAt()).isNotNull();
@@ -596,7 +697,7 @@ class PlaybackServiceTest {
         Playback playback = new Playback(queueItem, Instant.now());
         stubFinishHappyPath(playback);
 
-        playbackService.error(PLAYBACK_ID);
+        playbackService.error(PLAYBACK_ID, USER_ID, null);
 
         ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
         verify(roomEventPublisher).publish(eq("ABCDEFGH"), captor.capture());
@@ -605,9 +706,9 @@ class PlaybackServiceTest {
 
     @Test
     void errorThrowsWhenPlaybackNotFound() {
-        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.empty());
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> playbackService.error(PLAYBACK_ID))
+        assertThatThrownBy(() -> playbackService.error(PLAYBACK_ID, USER_ID, null))
                 .isInstanceOf(PlaybackNotFoundException.class);
     }
 
@@ -616,10 +717,167 @@ class PlaybackServiceTest {
         QueueItem queueItem = playingQueueItem();
         Playback playback = new Playback(queueItem, Instant.now());
         playback.setStatus(PlaybackStatus.FINISHED);
-        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
 
-        assertThatThrownBy(() -> playbackService.error(PLAYBACK_ID))
+        assertThatThrownBy(() -> playbackService.error(PLAYBACK_ID, USER_ID, null))
                 .isInstanceOf(PlaybackNotPlayingException.class);
+    }
+
+    @Test
+    void pausesPlayingPlayback() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        stubPauseHappyPath(playback);
+
+        Playback result = playbackService.pause(PLAYBACK_ID, USER_ID, null);
+
+        assertThat(result.isPaused()).isTrue();
+    }
+
+    @Test
+    void pauseIsIdempotent() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        playback.pause();
+        stubPauseHappyPath(playback);
+
+        playbackService.pause(PLAYBACK_ID, USER_ID, null);
+
+        verify(roomEventPublisher, never()).publish(eq("ABCDEFGH"), any(RoomEvent.class));
+    }
+
+    @Test
+    void resumesPausedPlayback() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        playback.pause();
+        stubPauseHappyPath(playback);
+
+        Playback result = playbackService.resume(PLAYBACK_ID, USER_ID, null);
+
+        assertThat(result.isPaused()).isFalse();
+    }
+
+    @Test
+    void resumeWhenNotPausedIsIdempotent() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        stubPauseHappyPath(playback);
+
+        playbackService.resume(PLAYBACK_ID, USER_ID, null);
+
+        verify(roomEventPublisher, never()).publish(eq("ABCDEFGH"), any(RoomEvent.class));
+    }
+
+    @Test
+    void pausePublishesPausedEvent() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        stubPauseHappyPath(playback);
+
+        playbackService.pause(PLAYBACK_ID, USER_ID, null);
+
+        ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
+        verify(roomEventPublisher).publish(eq("ABCDEFGH"), captor.capture());
+        assertThat(captor.getValue().eventType()).isEqualTo(RoomEventType.PLAYBACK_PAUSED);
+    }
+
+    @Test
+    void resumePublishesResumedEvent() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        playback.pause();
+        stubPauseHappyPath(playback);
+
+        playbackService.resume(PLAYBACK_ID, USER_ID, null);
+
+        ArgumentCaptor<RoomEvent> captor = ArgumentCaptor.forClass(RoomEvent.class);
+        verify(roomEventPublisher).publish(eq("ABCDEFGH"), captor.capture());
+        assertThat(captor.getValue().eventType()).isEqualTo(RoomEventType.PLAYBACK_RESUMED);
+    }
+
+    @Test
+    void pauseRejectsNonMember() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> playbackService.pause(PLAYBACK_ID, USER_ID, null))
+                .isInstanceOf(UserNotInRoomException.class);
+    }
+
+    @Test
+    void pauseRejectsInTodosOsNavegadores() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> playbackService.pause(PLAYBACK_ID, USER_ID, null))
+                .isInstanceOf(PlaybackCommandNotAllowedException.class);
+
+        verify(playbackRepository, never()).save(any(Playback.class));
+    }
+
+    @Test
+    void resumeRejectsInTodosOsNavegadores() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        playback.pause();
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> playbackService.resume(PLAYBACK_ID, USER_ID, null))
+                .isInstanceOf(PlaybackCommandNotAllowedException.class);
+
+        verify(playbackRepository, never()).save(any(Playback.class));
+    }
+
+    @Test
+    void pauseRejectsWrongPlayerSessionInCaixaDeMusica() {
+        room.changePlaybackMode(PlaybackMode.CAIXA_DE_MUSICA);
+        room.claim(SESSION_ID, user);
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> playbackService.pause(PLAYBACK_ID, USER_ID, "other-session"))
+                .isInstanceOf(NotThePlayerException.class);
+    }
+
+    @Test
+    void pauseAcceptsPlayerSessionInCaixaDeMusica() {
+        room.changePlaybackMode(PlaybackMode.CAIXA_DE_MUSICA);
+        room.claim(SESSION_ID, user);
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
+        when(playbackRepository.save(any(Playback.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        playbackService.pause(PLAYBACK_ID, USER_ID, SESSION_ID);
+
+        assertThat(playback.isPaused()).isTrue();
+    }
+
+    @Test
+    void finishRejectsNonMember() {
+        QueueItem queueItem = playingQueueItem();
+        Playback playback = new Playback(queueItem, Instant.now());
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> playbackService.finish(PLAYBACK_ID, USER_ID, null))
+                .isInstanceOf(UserNotInRoomException.class);
+    }
+
+    private void stubPauseHappyPath(Playback playback) {
+        room.changePlaybackMode(PlaybackMode.CAIXA_DE_MUSICA);
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
+        when(playbackRepository.save(any(Playback.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     private QueueItem stubStartNextHappyPath() {
@@ -645,7 +903,8 @@ class PlaybackServiceTest {
     }
 
     private void stubFinishHappyPath(Playback playback) {
-        when(playbackRepository.findById(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(playbackRepository.findByIdForUpdate(PLAYBACK_ID)).thenReturn(Optional.of(playback));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
         when(playbackRepository.save(any(Playback.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(queueItemRepository.save(any(QueueItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(queueService.findNextWaiting(ROOM_ID)).thenReturn(Optional.empty());

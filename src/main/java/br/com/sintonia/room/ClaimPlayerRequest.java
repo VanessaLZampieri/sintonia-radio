@@ -1,4 +1,4 @@
 package br.com.sintonia.room;
 
-public record ClaimPlayerRequest(String clientSessionId, Long userId) {
+public record ClaimPlayerRequest(String clientSessionId) {
 }

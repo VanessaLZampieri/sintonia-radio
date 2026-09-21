@@ -10,6 +10,7 @@ import jakarta.persistence.UniqueConstraint;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
+import java.util.Objects;
 
 @Entity
 @Table(
@@ -42,6 +43,19 @@ public class User {
     private Instant createdAt;
 
     protected User() {
+    }
+
+    public User(String googleId, String name, String email, String avatarUrl) {
+        this.googleId = Objects.requireNonNull(googleId, "googleId não pode ser nulo");
+        this.name = Objects.requireNonNull(name, "name não pode ser nulo");
+        this.email = Objects.requireNonNull(email, "email não pode ser nulo");
+        this.avatarUrl = avatarUrl;
+    }
+
+    public void updateProfile(String name, String email, String avatarUrl) {
+        this.name = Objects.requireNonNull(name, "name não pode ser nulo");
+        this.email = Objects.requireNonNull(email, "email não pode ser nulo");
+        this.avatarUrl = avatarUrl;
     }
 
     public Long getId() {

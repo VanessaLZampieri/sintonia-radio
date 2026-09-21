@@ -1,22 +1,33 @@
 package br.com.sintonia.queue;
 
 import br.com.sintonia.exception.GlobalExceptionHandler;
+import br.com.sintonia.playback.PlaybackService;
 import br.com.sintonia.room.Room;
 import br.com.sintonia.room.RoomClosedException;
 import br.com.sintonia.room.RoomNotFoundException;
 import br.com.sintonia.room.UserNotInRoomException;
+import br.com.sintonia.security.SintoniaOAuth2User;
 import br.com.sintonia.song.Song;
 import br.com.sintonia.song.SongNotFoundException;
 import br.com.sintonia.user.User;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -37,13 +48,21 @@ class QueueControllerTest {
 
     private MockMvc mockMvc;
     private QueueService queueService;
+    private PlaybackService playbackService;
 
     @BeforeEach
     void setUp() {
         queueService = mock(QueueService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new QueueController(queueService))
+        playbackService = mock(PlaybackService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new QueueController(queueService, playbackService))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -52,8 +71,9 @@ class QueueControllerTest {
         when(queueService.add(ROOM_ID, SONG_ID, USER_ID)).thenReturn(item);
 
         mockMvc.perform(post("/api/rooms/{roomId}/queue", ROOM_ID)
+                        .with(auth(USER_ID))
                         .contentType("application/json")
-                        .content("{\"songId\": 123, \"userId\": 456}"))
+                        .content("{\"songId\": 123}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(10))
                 .andExpect(jsonPath("$.position").value(1))
@@ -65,13 +85,29 @@ class QueueControllerTest {
     }
 
     @Test
+    void addTriggersPlaybackWhenRoomIdle() throws Exception {
+        QueueItem item = buildQueueItem();
+        when(queueService.add(ROOM_ID, SONG_ID, USER_ID)).thenReturn(item);
+
+        mockMvc.perform(post("/api/rooms/{roomId}/queue", ROOM_ID)
+                        .with(auth(USER_ID))
+                        .contentType("application/json")
+                        .content("{\"songId\": 123}"))
+                .andExpect(status().isCreated());
+
+        verify(queueService).add(ROOM_ID, SONG_ID, USER_ID);
+        verify(playbackService).ensurePlayback(ROOM_ID);
+    }
+
+    @Test
     void returnsNotFoundWhenRoomDoesNotExist() throws Exception {
         when(queueService.add(ROOM_ID, SONG_ID, USER_ID))
                 .thenThrow(new RoomNotFoundException("Sala não encontrada."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/queue", ROOM_ID)
+                        .with(auth(USER_ID))
                         .contentType("application/json")
-                        .content("{\"songId\": 123, \"userId\": 456}"))
+                        .content("{\"songId\": 123}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Sala não encontrada."));
     }
@@ -82,8 +118,9 @@ class QueueControllerTest {
                 .thenThrow(new RoomClosedException("Esta sala foi encerrada."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/queue", ROOM_ID)
+                        .with(auth(USER_ID))
                         .contentType("application/json")
-                        .content("{\"songId\": 123, \"userId\": 456}"))
+                        .content("{\"songId\": 123}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Esta sala foi encerrada."));
     }
@@ -94,8 +131,9 @@ class QueueControllerTest {
                 .thenThrow(new SongNotFoundException("Música não encontrada."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/queue", ROOM_ID)
+                        .with(auth(USER_ID))
                         .contentType("application/json")
-                        .content("{\"songId\": 123, \"userId\": 456}"))
+                        .content("{\"songId\": 123}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Música não encontrada."));
     }
@@ -106,8 +144,9 @@ class QueueControllerTest {
                 .thenThrow(new UserNotInRoomException("Usuário não está na sala."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/queue", ROOM_ID)
+                        .with(auth(USER_ID))
                         .contentType("application/json")
-                        .content("{\"songId\": 123, \"userId\": 456}"))
+                        .content("{\"songId\": 123}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value("Usuário não está na sala."));
     }
@@ -118,8 +157,9 @@ class QueueControllerTest {
                 .thenThrow(new SongAlreadyInQueueException("Esta música já está na fila."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/queue", ROOM_ID)
+                        .with(auth(USER_ID))
                         .contentType("application/json")
-                        .content("{\"songId\": 123, \"userId\": 456}"))
+                        .content("{\"songId\": 123}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Esta música já está na fila."));
     }
@@ -131,8 +171,9 @@ class QueueControllerTest {
                         "O usuário já possui 8 músicas na fila."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/queue", ROOM_ID)
+                        .with(auth(USER_ID))
                         .contentType("application/json")
-                        .content("{\"songId\": 123, \"userId\": 456}"))
+                        .content("{\"songId\": 123}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("O usuário já possui 8 músicas na fila."));
     }
@@ -140,6 +181,7 @@ class QueueControllerTest {
     @Test
     void rejectsInvalidRequest() throws Exception {
         mockMvc.perform(post("/api/rooms/{roomId}/queue", ROOM_ID)
+                        .with(auth(USER_ID))
                         .contentType("application/json")
                         .content("{}"))
                 .andExpect(status().isBadRequest());
@@ -200,8 +242,7 @@ class QueueControllerTest {
                 .when(queueService).remove(ROOM_ID, 10L, USER_ID);
 
         mockMvc.perform(delete("/api/rooms/{roomId}/queue/{queueItemId}", ROOM_ID, 10L)
-                        .contentType("application/json")
-                        .content("{\"userId\": 456}"))
+                        .with(auth(USER_ID)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Sala não encontrada."));
     }
@@ -212,8 +253,7 @@ class QueueControllerTest {
                 .when(queueService).remove(ROOM_ID, 10L, USER_ID);
 
         mockMvc.perform(delete("/api/rooms/{roomId}/queue/{queueItemId}", ROOM_ID, 10L)
-                        .contentType("application/json")
-                        .content("{\"userId\": 456}"))
+                        .with(auth(USER_ID)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Esta sala foi encerrada."));
     }
@@ -224,8 +264,7 @@ class QueueControllerTest {
                 .when(queueService).remove(ROOM_ID, 10L, USER_ID);
 
         mockMvc.perform(delete("/api/rooms/{roomId}/queue/{queueItemId}", ROOM_ID, 10L)
-                        .contentType("application/json")
-                        .content("{\"userId\": 456}"))
+                        .with(auth(USER_ID)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value("Usuário não está na sala."));
     }
@@ -236,8 +275,7 @@ class QueueControllerTest {
                 .when(queueService).remove(ROOM_ID, 10L, USER_ID);
 
         mockMvc.perform(delete("/api/rooms/{roomId}/queue/{queueItemId}", ROOM_ID, 10L)
-                        .contentType("application/json")
-                        .content("{\"userId\": 456}"))
+                        .with(auth(USER_ID)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Item da fila não encontrado."));
     }
@@ -245,21 +283,22 @@ class QueueControllerTest {
     @Test
     void removesItemSuccessfully() throws Exception {
         mockMvc.perform(delete("/api/rooms/{roomId}/queue/{queueItemId}", ROOM_ID, 10L)
-                        .contentType("application/json")
-                        .content("{\"userId\": 456}"))
+                        .with(auth(USER_ID)))
                 .andExpect(status().isOk());
 
         verify(queueService).remove(ROOM_ID, 10L, USER_ID);
     }
 
-    @Test
-    void rejectsDeleteInvalidRequest() throws Exception {
-        mockMvc.perform(delete("/api/rooms/{roomId}/queue/{queueItemId}", ROOM_ID, 10L)
-                        .contentType("application/json")
-                        .content("{}"))
-                .andExpect(status().isBadRequest());
-
-        verify(queueService, never()).remove(ROOM_ID, 10L, USER_ID);
+    private RequestPostProcessor auth(Long userId) {
+        OidcUser delegate = mock(OidcUser.class);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                new SintoniaOAuth2User(delegate, userId), null, List.of());
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        return request -> {
+            SecurityContextHolder.setContext(context);
+            return request;
+        };
     }
 
     private QueueItem buildQueueItem() {

@@ -1,10 +1,11 @@
 package br.com.sintonia.room;
 
+import br.com.sintonia.security.SintoniaOAuth2User;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -21,13 +22,15 @@ public class RoomMemberController {
     }
 
     @PostMapping("/{code}/members")
-    public RoomMemberResponse enterRoom(@PathVariable String code, @RequestBody EnterRoomRequest request) {
-        return roomMemberService.enterRoom(code, request.userId());
+    public RoomMemberResponse enterRoom(@PathVariable String code,
+                                        @AuthenticationPrincipal SintoniaOAuth2User principal) {
+        return roomMemberService.enterRoom(code, principal.getUserId());
     }
 
-    @DeleteMapping("/{code}/members/{userId}")
-    public ResponseEntity<?> leaveRoom(@PathVariable String code, @PathVariable Long userId) {
-        Optional<RoomMemberResponse> result = roomMemberService.leaveRoom(code, userId);
+    @DeleteMapping("/{code}/members")
+    public ResponseEntity<?> leaveRoom(@PathVariable String code,
+                                       @AuthenticationPrincipal SintoniaOAuth2User principal) {
+        Optional<RoomMemberResponse> result = roomMemberService.leaveRoom(code, principal.getUserId());
         if (result.isPresent()) {
             return ResponseEntity.ok(result.get());
         }

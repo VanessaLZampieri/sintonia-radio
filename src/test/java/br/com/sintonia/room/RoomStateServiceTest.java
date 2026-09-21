@@ -70,7 +70,7 @@ class RoomStateServiceTest {
         when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING)).thenReturn(Optional.empty());
         when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of());
 
-        RoomStateResponse result = roomStateService.get(ROOM_ID);
+        RoomStateResponse result = roomStateService.get(ROOM_ID, USER_ID);
 
         assertThat(result.roomId()).isEqualTo(ROOM_ID);
         assertThat(result.roomCode()).isEqualTo("ABCDEFGH");
@@ -90,7 +90,7 @@ class RoomStateServiceTest {
         when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING)).thenReturn(Optional.empty());
         when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of());
 
-        RoomStateResponse result = roomStateService.get(ROOM_ID);
+        RoomStateResponse result = roomStateService.get(ROOM_ID, USER_ID);
 
         assertThat(result.playbackMode()).isEqualTo(PlaybackMode.CAIXA_DE_MUSICA);
         assertThat(result.player()).isNotNull();
@@ -108,7 +108,7 @@ class RoomStateServiceTest {
         when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING)).thenReturn(Optional.of(playback));
         when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of());
 
-        RoomStateResponse result = roomStateService.get(ROOM_ID);
+        RoomStateResponse result = roomStateService.get(ROOM_ID, USER_ID);
 
         assertThat(result.currentPlayback()).isNotNull();
         assertThat(result.currentPlayback().playbackId()).isEqualTo(100L);
@@ -127,7 +127,7 @@ class RoomStateServiceTest {
         when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING)).thenReturn(Optional.empty());
         when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of(first, second));
 
-        RoomStateResponse result = roomStateService.get(ROOM_ID);
+        RoomStateResponse result = roomStateService.get(ROOM_ID, USER_ID);
 
         assertThat(result.queue()).hasSize(2);
         assertThat(result.queue().get(0).position()).isEqualTo(1);
@@ -150,7 +150,7 @@ class RoomStateServiceTest {
         when(roomMemberRepository.countByRoomAndLeftAtIsNull(room)).thenReturn(5L);
         when(skipVoteRepository.countByPlaybackId(100L)).thenReturn(2L);
 
-        RoomStateResponse result = roomStateService.get(ROOM_ID);
+        RoomStateResponse result = roomStateService.get(ROOM_ID, USER_ID);
 
         assertThat(result.skipVote()).isNotNull();
         assertThat(result.skipVote().votes()).isEqualTo(2);
@@ -158,10 +158,80 @@ class RoomStateServiceTest {
     }
 
     @Test
+    void snapshotCurrentPlaybackIncludesPausedAndPosition() {
+        QueueItem item = buildQueueItem(1);
+        Playback playback = new Playback(item, Instant.now().minusSeconds(10));
+        ReflectionTestUtils.setField(playback, "id", 100L);
+
+        stubRoom();
+        when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING)).thenReturn(Optional.of(playback));
+        when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of());
+
+        RoomStateResponse result = roomStateService.get(ROOM_ID, USER_ID);
+
+        assertThat(result.currentPlayback()).isNotNull();
+        assertThat(result.currentPlayback().paused()).isFalse();
+        assertThat(result.currentPlayback().positionSeconds()).isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
+    void snapshotPausedPlayback() {
+        QueueItem item = buildQueueItem(1);
+        Playback playback = new Playback(item, Instant.now().minusSeconds(30));
+        ReflectionTestUtils.setField(playback, "id", 100L);
+        playback.pause();
+
+        stubRoom();
+        when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING)).thenReturn(Optional.of(playback));
+        when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of());
+
+        RoomStateResponse result = roomStateService.get(ROOM_ID, USER_ID);
+
+        assertThat(result.currentPlayback().paused()).isTrue();
+        assertThat(result.currentPlayback().positionSeconds()).isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
+    void snapshotCurrentUserVotedFalse() {
+        QueueItem item = buildQueueItem(1);
+        Playback playback = new Playback(item, Instant.now());
+        ReflectionTestUtils.setField(playback, "id", 100L);
+
+        stubRoom();
+        when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING)).thenReturn(Optional.of(playback));
+        when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of());
+        when(roomMemberRepository.countByRoomAndLeftAtIsNull(room)).thenReturn(5L);
+        when(skipVoteRepository.countByPlaybackId(100L)).thenReturn(2L);
+        when(skipVoteRepository.existsByPlaybackIdAndUserId(100L, USER_ID)).thenReturn(false);
+
+        RoomStateResponse result = roomStateService.get(ROOM_ID, USER_ID);
+
+        assertThat(result.skipVote().currentUserVoted()).isFalse();
+    }
+
+    @Test
+    void snapshotCurrentUserVotedTrue() {
+        QueueItem item = buildQueueItem(1);
+        Playback playback = new Playback(item, Instant.now());
+        ReflectionTestUtils.setField(playback, "id", 100L);
+
+        stubRoom();
+        when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING)).thenReturn(Optional.of(playback));
+        when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of());
+        when(roomMemberRepository.countByRoomAndLeftAtIsNull(room)).thenReturn(5L);
+        when(skipVoteRepository.countByPlaybackId(100L)).thenReturn(2L);
+        when(skipVoteRepository.existsByPlaybackIdAndUserId(100L, USER_ID)).thenReturn(true);
+
+        RoomStateResponse result = roomStateService.get(ROOM_ID, USER_ID);
+
+        assertThat(result.skipVote().currentUserVoted()).isTrue();
+    }
+
+    @Test
     void snapshotRejectsUnknownRoom() {
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> roomStateService.get(ROOM_ID))
+        assertThatThrownBy(() -> roomStateService.get(ROOM_ID, USER_ID))
                 .isInstanceOf(RoomNotFoundException.class);
     }
 
@@ -170,7 +240,7 @@ class RoomStateServiceTest {
         Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
-        assertThatThrownBy(() -> roomStateService.get(ROOM_ID))
+        assertThatThrownBy(() -> roomStateService.get(ROOM_ID, USER_ID))
                 .isInstanceOf(RoomClosedException.class);
     }
 

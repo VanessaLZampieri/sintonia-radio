@@ -13,6 +13,8 @@ class RoomEventTypeTest {
                 RoomEventType.PLAYBACK_FINISHED,
                 RoomEventType.PLAYBACK_SKIPPED,
                 RoomEventType.PLAYBACK_ERROR,
+                RoomEventType.PLAYBACK_PAUSED,
+                RoomEventType.PLAYBACK_RESUMED,
                 RoomEventType.QUEUE_CHANGED,
                 RoomEventType.PLAYER_CHANGED,
                 RoomEventType.PLAYBACK_MODE_CHANGED,

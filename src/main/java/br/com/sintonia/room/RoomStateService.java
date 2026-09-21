@@ -11,6 +11,7 @@ import br.com.sintonia.song.Song;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,7 +37,7 @@ public class RoomStateService {
     }
 
     @Transactional(readOnly = true)
-    public RoomStateResponse get(Long roomId) {
+    public RoomStateResponse get(Long roomId, Long userId) {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new RoomNotFoundException("Sala não encontrada."));
 
@@ -45,6 +46,7 @@ public class RoomStateService {
         }
 
         Optional<Playback> playing = playbackRepository.findByQueueItemRoomIdAndStatus(roomId, PlaybackStatus.PLAYING);
+        Instant now = Instant.now();
 
         return new RoomStateResponse(
                 room.getId(),
@@ -52,9 +54,9 @@ public class RoomStateService {
                 room.getStatus(),
                 room.getPlaybackMode(),
                 playerState(room),
-                playing.map(this::toPlaybackState).orElse(null),
+                playing.map(p -> toPlaybackState(p, now)).orElse(null),
                 queueState(roomId),
-                playing.map(p -> skipVoteState(room, p)).orElse(null));
+                playing.map(p -> skipVoteState(room, p, userId)).orElse(null));
     }
 
     private RoomStateResponse.PlayerState playerState(Room room) {
@@ -67,12 +69,14 @@ public class RoomStateService {
                 room.getPlayerAssumedAt());
     }
 
-    private RoomStateResponse.PlaybackState toPlaybackState(Playback playback) {
+    private RoomStateResponse.PlaybackState toPlaybackState(Playback playback, Instant now) {
         QueueItem item = playback.getQueueItem();
         return new RoomStateResponse.PlaybackState(
                 playback.getId(),
                 item.getId(),
                 playback.getStartedAt(),
+                playback.isPaused(),
+                playback.positionSeconds(now),
                 songState(item.getSong()),
                 item.getUser() == null ? null : item.getUser().getId(),
                 item.getSource());
@@ -94,10 +98,12 @@ public class RoomStateService {
                 item.getSource());
     }
 
-    private RoomStateResponse.SkipVoteState skipVoteState(Room room, Playback playback) {
+    private RoomStateResponse.SkipVoteState skipVoteState(Room room, Playback playback, Long userId) {
         long participants = roomMemberRepository.countByRoomAndLeftAtIsNull(room);
         long votes = skipVoteRepository.countByPlaybackId(playback.getId());
-        return new RoomStateResponse.SkipVoteState(votes, SkipVoteService.requiredVotes(participants));
+        boolean currentUserVoted = userId != null
+                && skipVoteRepository.existsByPlaybackIdAndUserId(playback.getId(), userId);
+        return new RoomStateResponse.SkipVoteState(votes, SkipVoteService.requiredVotes(participants), currentUserVoted);
     }
 
     private RoomStateResponse.SongState songState(Song song) {

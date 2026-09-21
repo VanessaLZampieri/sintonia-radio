@@ -3,11 +3,22 @@ package br.com.sintonia.playback;
 import br.com.sintonia.exception.GlobalExceptionHandler;
 import br.com.sintonia.room.RoomNotFoundException;
 import br.com.sintonia.room.UserNotInRoomException;
+import br.com.sintonia.security.SintoniaOAuth2User;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.Mockito.mock;
@@ -31,7 +42,13 @@ class SkipVoteControllerTest {
         skipVoteService = mock(SkipVoteService.class);
         mockMvc = MockMvcBuilders.standaloneSetup(new SkipVoteController(skipVoteService))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -40,8 +57,7 @@ class SkipVoteControllerTest {
                 .thenReturn(new SkipVoteResponse(1L, 2L, 3L, false));
 
         mockMvc.perform(post("/api/rooms/{roomId}/skip-votes", ROOM_ID)
-                        .contentType("application/json")
-                        .content("{\"userId\": 100}"))
+                        .with(auth(USER_ID)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.playbackId").value(1))
                 .andExpect(jsonPath("$.votes").value(2))
@@ -52,21 +68,12 @@ class SkipVoteControllerTest {
     }
 
     @Test
-    void rejectsInvalidRequest() throws Exception {
-        mockMvc.perform(post("/api/rooms/{roomId}/skip-votes", ROOM_ID)
-                        .contentType("application/json")
-                        .content("{}"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
     void returnsForbiddenWhenUserNotInRoom() throws Exception {
         when(skipVoteService.vote(ROOM_ID, USER_ID))
                 .thenThrow(new UserNotInRoomException("Usuário não está na sala."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/skip-votes", ROOM_ID)
-                        .contentType("application/json")
-                        .content("{\"userId\": 100}"))
+                        .with(auth(USER_ID)))
                 .andExpect(status().isForbidden());
     }
 
@@ -76,8 +83,7 @@ class SkipVoteControllerTest {
                 .thenThrow(new SkipVoteAlreadyExistsException("O usuário já votou neste playback."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/skip-votes", ROOM_ID)
-                        .contentType("application/json")
-                        .content("{\"userId\": 100}"))
+                        .with(auth(USER_ID)))
                 .andExpect(status().isConflict());
     }
 
@@ -87,8 +93,7 @@ class SkipVoteControllerTest {
                 .thenThrow(new PlaybackNotFoundException("Não há playback em andamento na sala."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/skip-votes", ROOM_ID)
-                        .contentType("application/json")
-                        .content("{\"userId\": 100}"))
+                        .with(auth(USER_ID)))
                 .andExpect(status().isNotFound());
     }
 
@@ -98,8 +103,7 @@ class SkipVoteControllerTest {
                 .thenThrow(new RoomNotFoundException("Sala não encontrada."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/skip-votes", ROOM_ID)
-                        .contentType("application/json")
-                        .content("{\"userId\": 100}"))
+                        .with(auth(USER_ID)))
                 .andExpect(status().isNotFound());
     }
 
@@ -122,5 +126,17 @@ class SkipVoteControllerTest {
 
         mockMvc.perform(get("/api/rooms/{roomId}/skip-votes", ROOM_ID))
                 .andExpect(status().isNotFound());
+    }
+
+    private RequestPostProcessor auth(Long userId) {
+        OidcUser delegate = mock(OidcUser.class);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                new SintoniaOAuth2User(delegate, userId), null, List.of());
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        return request -> {
+            SecurityContextHolder.setContext(context);
+            return request;
+        };
     }
 }

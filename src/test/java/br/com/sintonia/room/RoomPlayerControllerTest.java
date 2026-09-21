@@ -1,12 +1,23 @@
 package br.com.sintonia.room;
 
 import br.com.sintonia.exception.GlobalExceptionHandler;
+import br.com.sintonia.security.SintoniaOAuth2User;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -31,7 +42,13 @@ class RoomPlayerControllerTest {
         roomPlayerService = mock(RoomPlayerService.class);
         mockMvc = MockMvcBuilders.standaloneSetup(new RoomPlayerController(roomPlayerService))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -57,8 +74,9 @@ class RoomPlayerControllerTest {
         when(roomPlayerService.claim(ROOM_ID, SESSION_ID, USER_ID)).thenReturn(response);
 
         mockMvc.perform(post("/api/rooms/{roomId}/player", ROOM_ID)
+                        .with(auth(USER_ID))
                         .contentType("application/json")
-                        .content("{\"clientSessionId\":\"session-1\",\"userId\":100}"))
+                        .content("{\"clientSessionId\":\"session-1\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.clientSessionId").value(SESSION_ID))
                 .andExpect(jsonPath("$.userId").value(100));
@@ -86,8 +104,9 @@ class RoomPlayerControllerTest {
                 .thenThrow(new RoomNotFoundException("Sala não encontrada."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/player", ROOM_ID)
+                        .with(auth(USER_ID))
                         .contentType("application/json")
-                        .content("{\"clientSessionId\":\"session-1\",\"userId\":100}"))
+                        .content("{\"clientSessionId\":\"session-1\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Sala não encontrada."));
     }
@@ -98,8 +117,9 @@ class RoomPlayerControllerTest {
                 .thenThrow(new PlayerAlreadyClaimedException("Já existe um player nesta sala."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/player", ROOM_ID)
+                        .with(auth(USER_ID))
                         .contentType("application/json")
-                        .content("{\"clientSessionId\":\"session-1\",\"userId\":100}"))
+                        .content("{\"clientSessionId\":\"session-1\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Já existe um player nesta sala."));
     }
@@ -122,9 +142,22 @@ class RoomPlayerControllerTest {
                 .thenThrow(new InvalidClientSessionIdException("clientSessionId é obrigatório."));
 
         mockMvc.perform(post("/api/rooms/{roomId}/player", ROOM_ID)
+                        .with(auth(USER_ID))
                         .contentType("application/json")
-                        .content("{\"clientSessionId\":\"   \",\"userId\":100}"))
+                        .content("{\"clientSessionId\":\"   \"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("clientSessionId é obrigatório."));
+    }
+
+    private RequestPostProcessor auth(Long userId) {
+        OidcUser delegate = mock(OidcUser.class);
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                new SintoniaOAuth2User(delegate, userId), null, List.of());
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        return request -> {
+            SecurityContextHolder.setContext(context);
+            return request;
+        };
     }
 }

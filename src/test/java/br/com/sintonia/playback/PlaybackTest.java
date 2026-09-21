@@ -2,6 +2,7 @@ package br.com.sintonia.playback;
 
 import br.com.sintonia.queue.QueueItem;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 
@@ -74,5 +75,76 @@ class PlaybackTest {
         Playback playback = new Playback(queueItem, startedAt);
 
         assertThat(playback.getEndedAt()).isNull();
+    }
+
+    @Test
+    void pauseMarksPaused() {
+        Playback playback = new Playback(queueItem, startedAt);
+
+        playback.pause();
+
+        assertThat(playback.isPaused()).isTrue();
+        assertThat(playback.getPausedAt()).isNotNull();
+    }
+
+    @Test
+    void pauseIsIdempotent() {
+        Playback playback = new Playback(queueItem, startedAt);
+        playback.pause();
+        Instant first = playback.getPausedAt();
+
+        playback.pause();
+
+        assertThat(playback.getPausedAt()).isEqualTo(first);
+    }
+
+    @Test
+    void resumeClearsPaused() {
+        Playback playback = new Playback(queueItem, startedAt);
+        playback.pause();
+
+        playback.resume();
+
+        assertThat(playback.isPaused()).isFalse();
+        assertThat(playback.getPausedAt()).isNull();
+    }
+
+    @Test
+    void positionAdvancesWhilePlaying() {
+        Playback playback = new Playback(queueItem, startedAt);
+
+        long position = playback.positionSeconds(Instant.parse("2026-01-01T19:30:30Z"));
+
+        assertThat(position).isEqualTo(30);
+    }
+
+    @Test
+    void positionFreezesWhilePaused() {
+        Playback playback = new Playback(queueItem, startedAt);
+        ReflectionTestUtils.setField(playback, "pausedAt", Instant.parse("2026-01-01T19:30:20Z"));
+
+        long position = playback.positionSeconds(Instant.parse("2026-01-01T19:31:00Z"));
+
+        assertThat(position).isEqualTo(20);
+    }
+
+    @Test
+    void pausedTimeIsExcludedFromPosition() {
+        Playback playback = new Playback(queueItem, startedAt);
+        ReflectionTestUtils.setField(playback, "totalPausedMillis", 10_000L);
+
+        long position = playback.positionSeconds(Instant.parse("2026-01-01T19:30:40Z"));
+
+        assertThat(position).isEqualTo(30);
+    }
+
+    @Test
+    void positionIsNeverNegative() {
+        Playback playback = new Playback(queueItem, startedAt);
+        ReflectionTestUtils.setField(playback, "totalPausedMillis", 10_000L);
+
+        long position = playback.positionSeconds(Instant.parse("2026-01-01T19:30:05Z"));
+
+        assertThat(position).isEqualTo(0);
     }
 }
