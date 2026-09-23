@@ -173,6 +173,7 @@ export interface RoomState {
     positionSeconds: number
     song: SongState
     addedByUserId: number | null
+    addedByDisplayName: string | null
     source: QueueItemSource
   } | null
   queue: {

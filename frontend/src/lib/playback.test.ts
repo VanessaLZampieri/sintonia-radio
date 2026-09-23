@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  YOUTUBE_PLAYER_VARS,
   clampSeekSeconds,
   formatDuration,
+  formatSeconds,
+  isPausedState,
   parseDurationSeconds,
   resumeTargetSeconds,
   shouldPauseLocally,
@@ -33,6 +36,42 @@ describe('shouldPauseLocally', () => {
 
   it('é false em CAIXA_DE_MUSICA', () => {
     expect(shouldPauseLocally('CAIXA_DE_MUSICA')).toBe(false)
+  })
+})
+
+describe('YOUTUBE_PLAYER_VARS', () => {
+  it('desliga os controles nativos do YouTube', () => {
+    expect(YOUTUBE_PLAYER_VARS.controls).toBe(0)
+  })
+
+  it('mantém playsinline para funcionar em mobile', () => {
+    expect(YOUTUBE_PLAYER_VARS.playsinline).toBe(1)
+  })
+})
+
+describe('isPausedState', () => {
+  it('em TODOS_OS_NAVEGADORES usa o pause local', () => {
+    expect(isPausedState('TODOS_OS_NAVEGADORES', true, false)).toBe(true)
+    expect(isPausedState('TODOS_OS_NAVEGADORES', false, true)).toBe(false)
+  })
+
+  it('em CAIXA_DE_MUSICA usa o pause global', () => {
+    expect(isPausedState('CAIXA_DE_MUSICA', true, false)).toBe(false)
+    expect(isPausedState('CAIXA_DE_MUSICA', false, true)).toBe(true)
+  })
+})
+
+describe('formatSeconds', () => {
+  it('formata segundos em M:SS', () => {
+    expect(formatSeconds(83)).toBe('1:23')
+  })
+
+  it('formata zero', () => {
+    expect(formatSeconds(0)).toBe('0:00')
+  })
+
+  it('formata horas', () => {
+    expect(formatSeconds(3661)).toBe('1:01:01')
   })
 })
 

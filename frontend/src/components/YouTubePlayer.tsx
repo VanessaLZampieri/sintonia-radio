@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { YOUTUBE_PLAYER_VARS } from '../lib/playback'
 
 declare global {
   interface Window {
@@ -12,6 +13,8 @@ interface YouTubePlayerProps {
   playing: boolean
   startAtSeconds: number
   syncRequest?: { seconds: number; nonce: number } | null
+  volume: number
+  muted: boolean
   onEnded: () => void
   onError: () => void
 }
@@ -42,6 +45,8 @@ export function YouTubePlayer({
   playing,
   startAtSeconds,
   syncRequest,
+  volume,
+  muted,
   onEnded,
   onError,
 }: YouTubePlayerProps) {
@@ -50,11 +55,11 @@ export function YouTubePlayer({
   const readyRef = useRef(false)
   const currentVideoRef = useRef<string | null>(null)
   const handlersRef = useRef({ onEnded, onError })
-  const desiredRef = useRef({ videoId, playing, startAtSeconds })
+  const desiredRef = useRef({ videoId, playing, startAtSeconds, volume, muted })
   const syncRequestRef = useRef<{ seconds: number; nonce: number } | null | undefined>(syncRequest)
   const lastSyncNonceRef = useRef<number | null>(null)
 
-  desiredRef.current = { videoId, playing, startAtSeconds }
+  desiredRef.current = { videoId, playing, startAtSeconds, volume, muted }
   syncRequestRef.current = syncRequest
 
   useEffect(() => {
@@ -84,6 +89,13 @@ export function YouTubePlayer({
     } else {
       player.pauseVideo()
     }
+
+    player.setVolume(Math.max(0, Math.min(100, desired.volume)))
+    if (desired.muted) {
+      player.mute()
+    } else {
+      player.unMute()
+    }
   }, [])
 
   useEffect(() => {
@@ -94,7 +106,7 @@ export function YouTubePlayer({
         return
       }
       playerRef.current = new window.YT.Player(containerRef.current, {
-        playerVars: { autoplay: 0, controls: 1, playsinline: 1 },
+        playerVars: YOUTUBE_PLAYER_VARS,
         events: {
           onReady: () => {
             readyRef.current = true
@@ -130,7 +142,7 @@ export function YouTubePlayer({
 
   useEffect(() => {
     applyDesired()
-  }, [videoId, playing, startAtSeconds, syncRequest, applyDesired])
+  }, [videoId, playing, startAtSeconds, syncRequest, volume, muted, applyDesired])
 
   return <div ref={containerRef} className="youtube-player" />
 }

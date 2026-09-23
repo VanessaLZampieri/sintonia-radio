@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import type { Client } from '@stomp/stompjs'
 import { api, ApiError } from '../api'
 import { YouTubePlayer } from '../components/YouTubePlayer'
-import { clampSeekSeconds, formatDuration, parseDurationSeconds, resumeTargetSeconds, shouldPauseLocally, shouldPlay } from '../lib/playback'
+import { clampSeekSeconds, formatDuration, formatSeconds, isPausedState, parseDurationSeconds, resumeTargetSeconds, shouldPauseLocally, shouldPlay } from '../lib/playback'
 import { connectToRoom, getOrCreateClientSessionId } from '../socket'
 import type { HistoryItem, RoomActivity, RoomState, SongSearchItem } from '../types'
 
@@ -24,6 +24,8 @@ export function RoomPage() {
   const [localPaused, setLocalPaused] = useState(false)
   const [syncRequest, setSyncRequest] = useState<{ seconds: number; nonce: number } | null>(null)
   const [roomName, setRoomName] = useState('')
+  const [volume, setVolume] = useState(100)
+  const [muted, setMuted] = useState(false)
 
   const mySessionId = useMemo(() => getOrCreateClientSessionId(), [])
   const socketRef = useRef<Client | null>(null)
@@ -315,19 +317,48 @@ export function RoomPage() {
     navigate('/')
   }
 
+  const currentPlayback = state?.currentPlayback ?? null
+  const hasPlayback = currentPlayback != null
+  const globallyPaused = currentPlayback?.paused ?? false
+  const isCaixaMode = state?.playbackMode === 'CAIXA_DE_MUSICA'
+  const caixaAssigned = state?.player?.clientSessionId != null
   const isPlayer = state
     ? shouldPlay(state.playbackMode, state.player?.clientSessionId ?? null, mySessionId)
     : false
+  const isPaused = state
+    ? isPausedState(state.playbackMode, localPaused, globallyPaused)
+    : false
 
-  const currentPlayback = state?.currentPlayback ?? null
-  const isPaused = state && shouldPauseLocally(state.playbackMode)
-    ? localPaused
-    : (currentPlayback?.paused ?? false)
+  const durationSeconds = currentPlayback ? parseDurationSeconds(currentPlayback.song.duration) : null
   const seekSeconds = currentPlayback
+    ? clampSeekSeconds(currentPlayback.positionSeconds, durationSeconds)
+    : 0
+
+  const lastSnapshotAtRef = useRef(Date.now())
+  useEffect(() => {
+    lastSnapshotAtRef.current = Date.now()
+  }, [state])
+
+  const [, setProgressTick] = useState(0)
+  useEffect(() => {
+    if (!hasPlayback || globallyPaused) {
+      return
+    }
+    const id = window.setInterval(() => setProgressTick((t) => t + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [hasPlayback, globallyPaused, currentPlayback?.playbackId])
+
+  const displayedSeconds = currentPlayback
     ? clampSeekSeconds(
-        currentPlayback.positionSeconds,
-        parseDurationSeconds(currentPlayback.song.duration),
+        globallyPaused
+          ? currentPlayback.positionSeconds
+          : currentPlayback.positionSeconds + Math.floor((Date.now() - lastSnapshotAtRef.current) / 1000),
+        durationSeconds,
       )
+    : 0
+
+  const progressPercent = durationSeconds
+    ? Math.min(100, Math.max(0, (displayedSeconds / durationSeconds) * 100))
     : 0
 
   const activityText = (activity: RoomActivity): string => {
@@ -449,16 +480,18 @@ export function RoomPage() {
                 <div className="card stack" style={{ background: 'var(--panel-2)' }}>
                   <div className="row">
                     <span className="muted">
-                      {state.player ? 'Player assumido' : 'Nenhum player assumido'}
+                      {caixaAssigned ? 'Player assumido' : 'Nenhum player assumido'}
                     </span>
-                    {isPlayer ? (
+                    {caixaAssigned && isPlayer ? (
                       <button className="btn btn-sm btn-danger" onClick={releasePlayer}>
                         Liberar player
                       </button>
-                    ) : (
+                    ) : !caixaAssigned ? (
                       <button className="btn btn-sm" onClick={claimPlayer}>
                         Assumir player
                       </button>
+                    ) : (
+                      <span className="muted">Já existe uma caixa nesta sala</span>
                     )}
                   </div>
                 </div>
@@ -476,35 +509,71 @@ export function RoomPage() {
                     <div className="grow">
                       <div className="ellipsis">{currentPlayback.song.title}</div>
                       <div className="muted" style={{ fontSize: '0.85rem' }}>
+                        {currentPlayback.addedByDisplayName
+                          ? `Adicionada por ${currentPlayback.addedByDisplayName} · `
+                          : ''}
                         {formatDuration(currentPlayback.song.duration)}
                         {isPaused ? ' · pausado' : ''}
                       </div>
                     </div>
-                    {isPlayer && (
-                      <button
-                        className="btn btn-sm"
-                        onClick={() => void (isPaused ? resume() : pause())}
-                      >
-                        {isPaused ? 'Retomar' : 'Pausar'}
-                      </button>
-                    )}
+                  </div>
+
+                  <div
+                    className="progress"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={durationSeconds ?? 0}
+                    aria-valuenow={displayedSeconds}
+                    aria-label="Progresso da música"
+                  >
+                    <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
+                  </div>
+                  <div className="row" style={{ justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    <span className="muted">{formatSeconds(displayedSeconds)}</span>
+                    <span className="muted">{formatDuration(currentPlayback.song.duration)}</span>
                   </div>
 
                   {isPlayer ? (
-                    <YouTubePlayer
-                      videoId={currentPlayback.song.youtubeVideoId}
-                      playing={!isPaused}
-                      startAtSeconds={seekSeconds}
-                      syncRequest={syncRequest}
-                      onEnded={handleEnded}
-                      onError={handlePlaybackError}
-                    />
-                  ) : (
+                    <>
+                      <YouTubePlayer
+                        videoId={currentPlayback.song.youtubeVideoId}
+                        playing={!isPaused}
+                        startAtSeconds={seekSeconds}
+                        syncRequest={syncRequest}
+                        volume={volume}
+                        muted={muted}
+                        onEnded={handleEnded}
+                        onError={handlePlaybackError}
+                      />
+                      <div className="row">
+                        <button className="btn" onClick={() => void (isPaused ? resume() : pause())}>
+                          {isPaused ? 'Retomar' : 'Pausar'}
+                        </button>
+                        <button className="btn btn-sm" onClick={() => setMuted((m) => !m)}>
+                          {muted ? 'Ativar som' : 'Silenciar'}
+                        </button>
+                        <input
+                          className="grow"
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={muted ? 0 : volume}
+                          onChange={(event) => {
+                            const value = Number(event.target.value)
+                            setVolume(value)
+                            if (value > 0) {
+                              setMuted(false)
+                            }
+                          }}
+                        />
+                      </div>
+                    </>
+                  ) : isCaixaMode && !caixaAssigned ? (
                     <div className="muted">
-                      {isPaused
-                        ? 'Reprodução pausada.'
-                        : 'Aguarde — somente o player desta sala reproduz o áudio.'}
+                      Nenhum dispositivo reproduzindo. Assuma a caixa para tocar o áudio.
                     </div>
+                  ) : (
+                    <div className="muted">Aguarde — somente a caixa desta sala reproduz o áudio.</div>
                   )}
                 </div>
               )}

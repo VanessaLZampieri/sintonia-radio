@@ -95,6 +95,7 @@ public class RoomStateService {
                 playback.positionSeconds(now),
                 songState(item.getSong()),
                 item.getUser() == null ? null : item.getUser().getId(),
+                item.getUser() == null ? null : item.getUser().getDisplayName(),
                 item.getSource());
     }
 

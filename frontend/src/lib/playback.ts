@@ -1,5 +1,7 @@
 import type { PlaybackMode } from '../types'
 
+export const YOUTUBE_PLAYER_VARS = { autoplay: 0, controls: 0, playsinline: 1 }
+
 export function shouldPlay(
   mode: PlaybackMode,
   playerClientSessionId: string | null,
@@ -13,6 +15,14 @@ export function shouldPlay(
 
 export function shouldPauseLocally(mode: PlaybackMode): boolean {
   return mode === 'TODOS_OS_NAVEGADORES'
+}
+
+export function isPausedState(
+  mode: PlaybackMode,
+  localPaused: boolean,
+  globallyPaused: boolean,
+): boolean {
+  return shouldPauseLocally(mode) ? localPaused : globallyPaused
 }
 
 export function parseDurationSeconds(iso: string): number | null {
@@ -48,6 +58,17 @@ export function formatDuration(iso: string): string {
   const seconds = match[3] ? Math.floor(parseFloat(match[3])) : 0
   if (hours > 0) {
     return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  }
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+export function formatSeconds(totalSeconds: number): string {
+  const total = Math.max(0, Math.floor(totalSeconds))
+  const minutes = Math.floor(total / 60)
+  const seconds = total % 60
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60)
+    return `${hours}:${String(minutes % 60).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
   }
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
