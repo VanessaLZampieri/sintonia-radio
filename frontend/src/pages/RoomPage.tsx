@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import type { Client } from '@stomp/stompjs'
 import { api, ApiError } from '../api'
 import { YouTubePlayer } from '../components/YouTubePlayer'
+import { Notice } from '../components/Notice'
 import { clampSeekSeconds, formatDuration, formatSeconds, isPausedState, parseDurationSeconds, resumeTargetSeconds, shouldPauseLocally, shouldPlay } from '../lib/playback'
 import { connectToRoom, getOrCreateClientSessionId } from '../socket'
 import type { HistoryItem, RoomActivity, RoomState, SongSearchItem } from '../types'
@@ -26,6 +27,8 @@ export function RoomPage() {
   const [roomName, setRoomName] = useState('')
   const [volume, setVolume] = useState(100)
   const [muted, setMuted] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [playerError, setPlayerError] = useState(false)
 
   const mySessionId = useMemo(() => getOrCreateClientSessionId(), [])
   const socketRef = useRef<Client | null>(null)
@@ -113,6 +116,10 @@ export function RoomPage() {
       setRoomName(state.name)
     }
   }, [state?.name])
+
+  useEffect(() => {
+    setPlayerError(false)
+  }, [state?.currentPlayback?.playbackId])
 
   const search = async () => {
     const trimmed = query.trim()
@@ -203,8 +210,10 @@ export function RoomPage() {
       return
     }
     setError(null)
+    setSuccessMessage(null)
     try {
       await api.renameRoom(roomId, roomName)
+      setSuccessMessage('Nome da sala alterado.')
       refresh()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível renomear a sala.')
@@ -292,6 +301,7 @@ export function RoomPage() {
     if (state && shouldPauseLocally(state.playbackMode) && localPaused) {
       return
     }
+    setPlayerError(true)
     void api
       .errorPlayback(state.currentPlayback.playbackId, mySessionId)
       .then(refresh)
@@ -403,7 +413,23 @@ export function RoomPage() {
         </button>
       </header>
 
-      {error && <div className="error-banner">{error}</div>}
+      {error && (
+        <Notice type="error" onClose={() => setError(null)}>
+          {error}
+        </Notice>
+      )}
+
+      {successMessage && (
+        <Notice type="success" onClose={() => setSuccessMessage(null)}>
+          {successMessage}
+        </Notice>
+      )}
+
+      {playerError && (
+        <Notice type="error" onClose={() => setPlayerError(false)}>
+          Não foi possível reproduzir esta música. Vamos seguir para a próxima.
+        </Notice>
+      )}
 
       {!entered && !error && <div className="muted">Entrando na sala…</div>}
 

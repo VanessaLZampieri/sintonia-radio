@@ -16,6 +16,9 @@ import type {
   UserRoom,
 } from './types'
 import { csrfHeaders } from './lib/csrf'
+import { ApiError, extractErrorMessage } from './lib/errors'
+
+export { ApiError }
 
 export async function logout(): Promise<void> {
   await fetch('/logout', {
@@ -23,15 +26,6 @@ export async function logout(): Promise<void> {
     credentials: 'same-origin',
     headers: csrfHeaders('POST', document.cookie),
   })
-}
-
-export class ApiError extends Error {
-  status: number
-
-  constructor(status: number, message: string) {
-    super(message)
-    this.status = status
-  }
 }
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -43,24 +37,34 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   }
   headers['Accept'] = 'application/json'
 
-  const response = await fetch(url, {
-    ...options,
-    method,
-    headers,
-    credentials: 'same-origin',
-  })
+  let response: Response
+  try {
+    response = await fetch(url, {
+      ...options,
+      method,
+      headers,
+      credentials: 'same-origin',
+    })
+  } catch {
+    throw new ApiError(0, extractErrorMessage(null, 0))
+  }
 
   if (response.status === 204) {
     return undefined as T
   }
 
   const text = await response.text()
-  const data = text ? JSON.parse(text) : null
+  let data: unknown = null
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = null
+    }
+  }
 
   if (!response.ok) {
-    const message =
-      data && typeof data.message === 'string' ? data.message : `Erro inesperado (${response.status})`
-    throw new ApiError(response.status, message)
+    throw new ApiError(response.status, extractErrorMessage(data, response.status))
   }
 
   return data as T

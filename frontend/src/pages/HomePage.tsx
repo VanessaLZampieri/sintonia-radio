@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError, logout } from '../api'
 import { useAuth } from '../auth'
+import { Notice } from '../components/Notice'
 import type { ActiveRoom, UserRoom } from '../types'
 
 export function HomePage() {
@@ -139,7 +140,11 @@ export function HomePage() {
             {savingName ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
-        {nameMessage && <div className="muted">{nameMessage}</div>}
+        {nameMessage && (
+          <Notice type="success" onClose={() => setNameMessage(null)}>
+            {nameMessage}
+          </Notice>
+        )}
       </div>
 
       <div className="grid-2">
@@ -232,7 +237,11 @@ export function HomePage() {
         </div>
       </div>
 
-      {error && <div className="error-banner">{error}</div>}
+      {error && (
+        <Notice type="error" onClose={() => setError(null)}>
+          {error}
+        </Notice>
+      )}
     </div>
   )
 }
