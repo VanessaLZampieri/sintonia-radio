@@ -6,13 +6,14 @@ import br.com.sintonia.user.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
 @Service
 public class RoomMemberService {
 
-    private static final int MAX_PARTICIPANTS = 15;
+    public static final int MAX_PARTICIPANTS = 15;
 
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
@@ -77,5 +78,19 @@ public class RoomMemberService {
         }
 
         return Optional.of(RoomMemberResponse.from(member.get()));
+    }
+
+    @Transactional(readOnly = true)
+    public List<RoomParticipantResponse> findPresent(Long roomId) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new RoomNotFoundException("Sala não encontrada."));
+
+        if (room.getStatus() != RoomStatus.ACTIVE) {
+            throw new RoomClosedException("Esta sala foi encerrada.");
+        }
+
+        return roomMemberRepository.findAllByRoomIdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(roomId).stream()
+                .map(RoomParticipantResponse::from)
+                .toList();
     }
 }

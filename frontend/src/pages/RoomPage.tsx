@@ -365,6 +365,25 @@ export function RoomPage() {
             </div>
           </section>
 
+          <section className="card stack">
+            <h3 style={{ margin: 0 }}>Na sala</h3>
+            <div className="list">
+              {state.members.length === 0 && <div className="muted">Ninguém na sala.</div>}
+              {state.members.map((member) => (
+                <div className="list-item" key={member.userId}>
+                  <div className="avatar">
+                    {member.avatarUrl ? (
+                      <img src={member.avatarUrl} alt={member.displayName} />
+                    ) : (
+                      (member.displayName?.[0] ?? '?')
+                    )}
+                  </div>
+                  <div className="grow ellipsis">{member.displayName}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <div className="grid-2">
             <section className="card stack">
               <h3 style={{ margin: 0 }}>Reprodução</h3>

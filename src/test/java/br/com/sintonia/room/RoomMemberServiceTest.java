@@ -7,10 +7,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -101,5 +104,64 @@ class RoomMemberServiceTest {
 
         assertThat(member.getLeftAt()).isNotNull();
         assertThat(room.getEmptySince()).isNull();
+    }
+
+    @Test
+    void findPresentReturnsPresentMembers() {
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", 1L);
+        User ana = user(10L, "Ana Souza", "https://img/ana.jpg");
+        User bruno = user(11L, "Bruno Lima", null);
+        RoomMember m1 = new RoomMember(room, ana);
+        RoomMember m2 = new RoomMember(room, bruno);
+
+        when(roomRepository.findById(1L)).thenReturn(Optional.of(room));
+        when(roomMemberRepository.findAllByRoomIdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(1L))
+                .thenReturn(List.of(m1, m2));
+
+        List<RoomParticipantResponse> result = roomMemberService.findPresent(1L);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).userId()).isEqualTo(10L);
+        assertThat(result.get(0).displayName()).isEqualTo("Ana");
+        assertThat(result.get(0).avatarUrl()).isEqualTo("https://img/ana.jpg");
+        assertThat(result.get(1).userId()).isEqualTo(11L);
+        assertThat(result.get(1).displayName()).isEqualTo("Bruno");
+        assertThat(result.get(1).avatarUrl()).isNull();
+    }
+
+    @Test
+    void findPresentReturnsEmptyWhenNoMembers() {
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", 1L);
+        when(roomRepository.findById(1L)).thenReturn(Optional.of(room));
+        when(roomMemberRepository.findAllByRoomIdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(1L))
+                .thenReturn(List.of());
+
+        assertThat(roomMemberService.findPresent(1L)).isEmpty();
+    }
+
+    @Test
+    void findPresentRejectsUnknownRoom() {
+        when(roomRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> roomMemberService.findPresent(1L))
+                .isInstanceOf(RoomNotFoundException.class);
+    }
+
+    @Test
+    void findPresentRejectsClosedRoom() {
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
+        ReflectionTestUtils.setField(room, "id", 1L);
+        when(roomRepository.findById(1L)).thenReturn(Optional.of(room));
+
+        assertThatThrownBy(() -> roomMemberService.findPresent(1L))
+                .isInstanceOf(RoomClosedException.class);
+    }
+
+    private User user(Long id, String name, String avatarUrl) {
+        User user = new User("google-" + id, name, "user" + id + "@example.com", avatarUrl);
+        ReflectionTestUtils.setField(user, "id", id);
+        return user;
     }
 }

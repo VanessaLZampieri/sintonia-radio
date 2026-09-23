@@ -41,6 +41,35 @@ export interface RoomMember {
   leftAt: string | null
 }
 
+export interface RoomParticipant {
+  userId: number
+  displayName: string
+  avatarUrl: string | null
+}
+
+export interface ActiveRoom {
+  roomId: number
+  name: string
+  code: string
+  participantCount: number
+  waitingCount: number
+  nowPlaying: {
+    title: string
+    youtubeVideoId: string
+    thumbnailUrl: string
+    addedBy: { userId: number; displayName: string; avatarUrl: string | null } | null
+  } | null
+}
+
+export interface UserRoom {
+  roomId: number
+  name: string
+  code: string
+  status: RoomStatus
+  canEnter: boolean
+  participantCount: number
+}
+
 export interface Song {
   id: number
   youtubeVideoId: string
@@ -109,6 +138,7 @@ export interface RoomState {
   roomCode: string
   name: string
   status: RoomStatus
+  members: RoomParticipant[]
   playbackMode: PlaybackMode
   player: { clientSessionId: string | null; userId: number | null; assumedAt: string | null } | null
   currentPlayback: {

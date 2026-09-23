@@ -1,4 +1,5 @@
 import type {
+  ActiveRoom,
   HistoryItem,
   Me,
   PlaybackMode,
@@ -11,6 +12,7 @@ import type {
   SkipVote,
   Song,
   SongSearchItem,
+  UserRoom,
 } from './types'
 import { csrfHeaders } from './lib/csrf'
 
@@ -81,6 +83,10 @@ export const api = {
 
   renameRoom: (roomId: number, name: string) =>
     request<Room>(`/api/rooms/${roomId}`, { method: 'PATCH', body: jsonBody({ name }) }),
+
+  listActiveRooms: () => request<ActiveRoom[]>('/api/rooms'),
+
+  myRooms: () => request<UserRoom[]>('/api/me/rooms'),
 
   enterRoom: (code: string) =>
     request<RoomMember>(`/rooms/${encodeURIComponent(code)}/members`, { method: 'POST' }),

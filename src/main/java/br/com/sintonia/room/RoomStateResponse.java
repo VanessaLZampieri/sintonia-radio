@@ -11,6 +11,7 @@ public record RoomStateResponse(
         String roomCode,
         String name,
         RoomStatus status,
+        List<RoomParticipantResponse> members,
         PlaybackMode playbackMode,
         PlayerState player,
         PlaybackState currentPlayback,

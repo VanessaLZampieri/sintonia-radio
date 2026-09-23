@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError, logout } from '../api'
 import { useAuth } from '../auth'
+import type { ActiveRoom, UserRoom } from '../types'
 
 export function HomePage() {
   const { me, reload } = useAuth()
@@ -13,6 +14,22 @@ export function HomePage() {
   const [nameMessage, setNameMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [activeRooms, setActiveRooms] = useState<ActiveRoom[]>([])
+  const [myRooms, setMyRooms] = useState<UserRoom[]>([])
+
+  const loadRooms = async () => {
+    try {
+      const [active, mine] = await Promise.all([api.listActiveRooms(), api.myRooms()])
+      setActiveRooms(active)
+      setMyRooms(mine)
+    } catch {
+      // Ignora falha ao carregar as listas; o usuário ainda pode criar/entrar por código.
+    }
+  }
+
+  useEffect(() => {
+    void loadRooms()
+  }, [])
 
   useEffect(() => {
     if (me?.displayName) {
@@ -52,8 +69,8 @@ export function HomePage() {
     }
   }
 
-  const enterRoom = async () => {
-    const trimmed = code.trim()
+  const enterByCode = async (rawCode: string) => {
+    const trimmed = rawCode.trim()
     if (!trimmed) {
       setError('Digite o código da sala.')
       return
@@ -157,13 +174,61 @@ export function HomePage() {
             onChange={(event) => setCode(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
-                void enterRoom()
+                void enterByCode(code)
               }
             }}
           />
-          <button className="btn" onClick={enterRoom} disabled={busy}>
+          <button className="btn" onClick={() => void enterByCode(code)} disabled={busy}>
             Entrar
           </button>
+        </div>
+      </div>
+
+      <div className="card stack">
+        <h2 style={{ margin: 0 }}>Salas no ar</h2>
+        {activeRooms.length === 0 && <div className="muted">Nenhuma sala no ar agora.</div>}
+        <div className="list">
+          {activeRooms.map((room) => (
+            <div className="list-item" key={room.roomId}>
+              <div className="grow">
+                <div className="ellipsis">{room.name}</div>
+                <div className="muted" style={{ fontSize: '0.85rem' }}>
+                  {room.code} · {room.participantCount} participante(s) · {room.waitingCount} na fila
+                  {room.nowPlaying ? ` · Tocando: ${room.nowPlaying.title}` : ''}
+                </div>
+              </div>
+              <button className="btn btn-sm" onClick={() => void enterByCode(room.code)} disabled={busy}>
+                Entrar
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card stack">
+        <h2 style={{ margin: 0 }}>Suas salas</h2>
+        {myRooms.length === 0 && <div className="muted">Você ainda não participou de nenhuma sala.</div>}
+        <div className="list">
+          {myRooms.map((room) => (
+            <div className="list-item" key={room.roomId}>
+              <div className="grow">
+                <div className="ellipsis">{room.name}</div>
+                <div className="muted" style={{ fontSize: '0.85rem' }}>
+                  {room.code} · {room.participantCount} participante(s)
+                  {room.status === 'CLOSED' ? ' · Encerrada' : ''}
+                </div>
+              </div>
+              {room.canEnter ? (
+                <button className="btn btn-sm" onClick={() => void enterByCode(room.code)} disabled={busy}>
+                  Entrar
+                </button>
+              ) : room.status === 'CLOSED' ? (
+                <span className="muted">Encerrada</span>
+              ) : (
+                <span className="muted">Cheia</span>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 

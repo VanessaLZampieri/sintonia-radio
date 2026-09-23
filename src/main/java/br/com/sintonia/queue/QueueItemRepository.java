@@ -13,6 +13,8 @@ public interface QueueItemRepository extends JpaRepository<QueueItem, Long> {
 
     long countByRoomIdAndUserId(Long roomId, Long userId);
 
+    long countByRoomIdAndStatus(Long roomId, QueueItemStatus status);
+
     @Query("SELECT COALESCE(MAX(q.position), 0) FROM QueueItem q WHERE q.room.id = :roomId")
     Integer findMaxPositionByRoomId(@Param("roomId") Long roomId);
 

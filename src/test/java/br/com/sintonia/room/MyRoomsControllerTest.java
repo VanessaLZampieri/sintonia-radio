@@ -1,6 +1,5 @@
 package br.com.sintonia.room;
 
-import br.com.sintonia.exception.GlobalExceptionHandler;
 import br.com.sintonia.security.SintoniaOAuth2User;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,28 +15,25 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
-import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class RoomStateControllerTest {
+class MyRoomsControllerTest {
 
-    private static final Long ROOM_ID = 1L;
     private static final Long USER_ID = 100L;
 
     private MockMvc mockMvc;
-    private RoomStateService roomStateService;
+    private RoomDiscoveryService roomDiscoveryService;
 
     @BeforeEach
     void setUp() {
-        roomStateService = mock(RoomStateService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new RoomStateController(roomStateService))
-                .setControllerAdvice(new GlobalExceptionHandler())
+        roomDiscoveryService = mock(RoomDiscoveryService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new MyRoomsController(roomDiscoveryService))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
     }
@@ -48,32 +44,18 @@ class RoomStateControllerTest {
     }
 
     @Test
-    void getsRoomState() throws Exception {
-        RoomStateResponse response = new RoomStateResponse(
-                ROOM_ID, "ABCDEFGH", "Sala Teste", RoomStatus.ACTIVE, List.of(),
-                PlaybackMode.TODOS_OS_NAVEGADORES, null, null, List.of(), null);
-        when(roomStateService.get(ROOM_ID, USER_ID)).thenReturn(response);
+    void listsMyRooms() throws Exception {
+        when(roomDiscoveryService.listUserRooms(eq(USER_ID))).thenReturn(List.of(
+                new UserRoomResponse(1L, "Sala A", "CODE1", RoomStatus.ACTIVE, true, 3L),
+                new UserRoomResponse(2L, "Sala B", "CODE2", RoomStatus.CLOSED, false, 0L)));
 
-        mockMvc.perform(get("/api/rooms/{roomId}/state", ROOM_ID).with(auth(USER_ID)))
+        mockMvc.perform(get("/api/me/rooms").with(auth(USER_ID)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.roomId").value(1))
-                .andExpect(jsonPath("$.roomCode").value("ABCDEFGH"))
-                .andExpect(jsonPath("$.name").value("Sala Teste"))
-                .andExpect(jsonPath("$.status").value("ACTIVE"))
-                .andExpect(jsonPath("$.members").isEmpty())
-                .andExpect(jsonPath("$.playbackMode").value("TODOS_OS_NAVEGADORES"))
-                .andExpect(jsonPath("$.queue").isEmpty());
-
-        verify(roomStateService).get(ROOM_ID, USER_ID);
-    }
-
-    @Test
-    void returnsNotFoundWhenRoomDoesNotExist() throws Exception {
-        when(roomStateService.get(ROOM_ID, USER_ID)).thenThrow(new RoomNotFoundException("Sala não encontrada."));
-
-        mockMvc.perform(get("/api/rooms/{roomId}/state", ROOM_ID).with(auth(USER_ID)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("Sala não encontrada."));
+                .andExpect(jsonPath("$[0].roomId").value(1))
+                .andExpect(jsonPath("$[0].canEnter").value(true))
+                .andExpect(jsonPath("$[1].roomId").value(2))
+                .andExpect(jsonPath("$[1].status").value("CLOSED"))
+                .andExpect(jsonPath("$[1].canEnter").value(false));
     }
 
     private RequestPostProcessor auth(Long userId) {

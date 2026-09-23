@@ -245,6 +245,26 @@ class RoomStateServiceTest {
                 .isInstanceOf(RoomClosedException.class);
     }
 
+    @Test
+    void snapshotIncludesPresentMembers() {
+        stubRoom();
+        when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING)).thenReturn(Optional.empty());
+        when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of());
+
+        User memberUser = new User("g1", "Ana Souza", "ana@example.com", "https://img/ana.jpg");
+        ReflectionTestUtils.setField(memberUser, "id", 200L);
+        RoomMember member = new RoomMember(room, memberUser);
+        when(roomMemberRepository.findAllByRoomIdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(ROOM_ID))
+                .thenReturn(List.of(member));
+
+        RoomStateResponse result = roomStateService.get(ROOM_ID, USER_ID);
+
+        assertThat(result.members()).hasSize(1);
+        assertThat(result.members().get(0).userId()).isEqualTo(200L);
+        assertThat(result.members().get(0).displayName()).isEqualTo("Ana");
+        assertThat(result.members().get(0).avatarUrl()).isEqualTo("https://img/ana.jpg");
+    }
+
     private void stubRoom() {
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(room));
     }

@@ -53,11 +53,18 @@ public class RoomStateService {
                 room.getCode(),
                 room.getName(),
                 room.getStatus(),
+                membersState(roomId),
                 room.getPlaybackMode(),
                 playerState(room),
                 playing.map(p -> toPlaybackState(p, now)).orElse(null),
                 queueState(roomId),
                 playing.map(p -> skipVoteState(room, p, userId)).orElse(null));
+    }
+
+    private List<RoomParticipantResponse> membersState(Long roomId) {
+        return roomMemberRepository.findAllByRoomIdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(roomId).stream()
+                .map(RoomParticipantResponse::from)
+                .toList();
     }
 
     private RoomStateResponse.PlayerState playerState(Room room) {
