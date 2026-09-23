@@ -4,6 +4,7 @@ import br.com.sintonia.user.User;
 import br.com.sintonia.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -16,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,6 +31,9 @@ class RoomMemberServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private RoomActivityService roomActivityService;
 
     @InjectMocks
     private RoomMemberService roomMemberService;
@@ -50,6 +55,10 @@ class RoomMemberServiceTest {
         assertThat(member.getLeftAt()).isNotNull();
         assertThat(room.getEmptySince()).isNotNull();
         assertThat(room.getStatus()).isEqualTo(RoomStatus.ACTIVE);
+
+        ArgumentCaptor<RoomActivityType> typeCaptor = ArgumentCaptor.forClass(RoomActivityType.class);
+        verify(roomActivityService).record(any(), typeCaptor.capture(), any(), any(), any());
+        assertThat(typeCaptor.getValue()).isEqualTo(RoomActivityType.MEMBER_LEFT);
     }
 
     @Test
@@ -87,6 +96,10 @@ class RoomMemberServiceTest {
 
         assertThat(room.getEmptySince()).isNull();
         assertThat(room.getStatus()).isEqualTo(RoomStatus.ACTIVE);
+
+        ArgumentCaptor<RoomActivityType> typeCaptor = ArgumentCaptor.forClass(RoomActivityType.class);
+        verify(roomActivityService).record(any(), typeCaptor.capture(), any(), any(), any());
+        assertThat(typeCaptor.getValue()).isEqualTo(RoomActivityType.MEMBER_JOINED);
     }
 
     @Test

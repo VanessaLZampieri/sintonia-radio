@@ -8,6 +8,8 @@ import br.com.sintonia.queue.QueueService;
 import br.com.sintonia.room.NotThePlayerException;
 import br.com.sintonia.room.PlaybackMode;
 import br.com.sintonia.room.Room;
+import br.com.sintonia.room.RoomActivityService;
+import br.com.sintonia.room.RoomActivityType;
 import br.com.sintonia.room.RoomClosedException;
 import br.com.sintonia.room.RoomMemberRepository;
 import br.com.sintonia.room.RoomNotFoundException;
@@ -35,6 +37,7 @@ public class PlaybackService {
     private final QueueService queueService;
     private final RoomEventPublisher roomEventPublisher;
     private final AutoDjService autoDjService;
+    private final RoomActivityService roomActivityService;
 
     public PlaybackService(RoomRepository roomRepository,
                            QueueItemRepository queueItemRepository,
@@ -42,7 +45,8 @@ public class PlaybackService {
                            RoomMemberRepository roomMemberRepository,
                            QueueService queueService,
                            RoomEventPublisher roomEventPublisher,
-                           AutoDjService autoDjService) {
+                           AutoDjService autoDjService,
+                           RoomActivityService roomActivityService) {
         this.roomRepository = roomRepository;
         this.queueItemRepository = queueItemRepository;
         this.playbackRepository = playbackRepository;
@@ -50,6 +54,7 @@ public class PlaybackService {
         this.queueService = queueService;
         this.roomEventPublisher = roomEventPublisher;
         this.autoDjService = autoDjService;
+        this.roomActivityService = roomActivityService;
     }
 
     @Transactional
@@ -78,6 +83,8 @@ public class PlaybackService {
 
         queueItemRepository.save(queueItem);
         playbackRepository.save(playback);
+
+        roomActivityService.record(room, RoomActivityType.PLAYBACK_STARTED, null, queueItem.getSong(), null);
 
         roomEventPublisher.publish(room.getCode(),
                 new RoomEvent(RoomEventType.PLAYBACK_STARTED, roomId,
@@ -134,6 +141,7 @@ public class PlaybackService {
         queueItemRepository.save(queueItem);
 
         Room room = queueItem.getRoom();
+        roomActivityService.record(room, RoomActivityType.PLAYBACK_FINISHED, null, queueItem.getSong(), null);
         roomEventPublisher.publish(room.getCode(),
                 new RoomEvent(RoomEventType.PLAYBACK_FINISHED, room.getId(),
                         new PlaybackEventPayload(playbackId, queueItem.getId())));
@@ -157,6 +165,7 @@ public class PlaybackService {
         queueItemRepository.save(queueItem);
 
         Room room = queueItem.getRoom();
+        roomActivityService.record(room, RoomActivityType.PLAYBACK_SKIPPED, null, queueItem.getSong(), null);
         roomEventPublisher.publish(room.getCode(),
                 new RoomEvent(RoomEventType.PLAYBACK_SKIPPED, room.getId(),
                         new PlaybackEventPayload(playbackId, queueItem.getId())));

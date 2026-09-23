@@ -18,13 +18,16 @@ public class RoomMemberService {
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final UserRepository userRepository;
+    private final RoomActivityService roomActivityService;
 
     public RoomMemberService(RoomRepository roomRepository,
                              RoomMemberRepository roomMemberRepository,
-                             UserRepository userRepository) {
+                             UserRepository userRepository,
+                             RoomActivityService roomActivityService) {
         this.roomRepository = roomRepository;
         this.roomMemberRepository = roomMemberRepository;
         this.userRepository = userRepository;
+        this.roomActivityService = roomActivityService;
     }
 
     @Transactional
@@ -53,6 +56,7 @@ public class RoomMemberService {
 
         RoomMember member = roomMemberRepository.save(new RoomMember(room, user));
         room.markOccupied();
+        roomActivityService.record(room, RoomActivityType.MEMBER_JOINED, user, null, null);
         return RoomMemberResponse.from(member);
     }
 
@@ -72,6 +76,7 @@ public class RoomMemberService {
         }
 
         member.get().leave();
+        roomActivityService.record(room, RoomActivityType.MEMBER_LEFT, user, null, null);
         if (room.getStatus() == RoomStatus.ACTIVE
                 && roomMemberRepository.countByRoomAndLeftAtIsNull(room) == 0) {
             room.markEmpty();

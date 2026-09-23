@@ -1,6 +1,8 @@
 package br.com.sintonia.queue;
 
 import br.com.sintonia.room.Room;
+import br.com.sintonia.room.RoomActivityService;
+import br.com.sintonia.room.RoomActivityType;
 import br.com.sintonia.room.RoomClosedException;
 import br.com.sintonia.room.RoomMemberRepository;
 import br.com.sintonia.room.RoomNotFoundException;
@@ -36,19 +38,22 @@ public class QueueService {
     private final QueueItemRepository queueItemRepository;
     private final UserRepository userRepository;
     private final RoomEventPublisher roomEventPublisher;
+    private final RoomActivityService roomActivityService;
 
     public QueueService(RoomRepository roomRepository,
                         RoomMemberRepository roomMemberRepository,
                         SongRepository songRepository,
                         QueueItemRepository queueItemRepository,
                         UserRepository userRepository,
-                        RoomEventPublisher roomEventPublisher) {
+                        RoomEventPublisher roomEventPublisher,
+                        RoomActivityService roomActivityService) {
         this.roomRepository = roomRepository;
         this.roomMemberRepository = roomMemberRepository;
         this.songRepository = songRepository;
         this.queueItemRepository = queueItemRepository;
         this.userRepository = userRepository;
         this.roomEventPublisher = roomEventPublisher;
+        this.roomActivityService = roomActivityService;
     }
 
     @Transactional(readOnly = true)
@@ -113,8 +118,11 @@ public class QueueService {
             throw new UserNotInRoomException("Usuário não está na sala.");
         }
 
-        queueItemRepository.findByIdAndRoomId(queueItemId, roomId)
+        QueueItem item = queueItemRepository.findByIdAndRoomId(queueItemId, roomId)
                 .orElseThrow(() -> new QueueItemNotFoundException("Item da fila não encontrado."));
+
+        User actor = userRepository.getReferenceById(userId);
+        roomActivityService.record(room, RoomActivityType.SONG_REMOVED, actor, item.getSong(), null);
 
         queueItemRepository.deleteById(queueItemId);
 
@@ -152,6 +160,7 @@ public class QueueService {
         int position = queueItemRepository.findMaxPositionByRoomId(roomId) + 1;
 
         QueueItem saved = queueItemRepository.save(new QueueItem(room, song, user, Instant.now(), position));
+        roomActivityService.record(room, RoomActivityType.SONG_ADDED, user, song, null);
         roomEventPublisher.publish(room.getCode(),
                 new RoomEvent(RoomEventType.QUEUE_CHANGED, roomId,
                         new QueueChangedEventPayload(saved.getId(), QueueChangeAction.ADDED)));

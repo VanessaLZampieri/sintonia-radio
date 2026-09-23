@@ -5,7 +5,7 @@ import { api, ApiError } from '../api'
 import { YouTubePlayer } from '../components/YouTubePlayer'
 import { clampSeekSeconds, formatDuration, parseDurationSeconds, resumeTargetSeconds, shouldPauseLocally, shouldPlay } from '../lib/playback'
 import { connectToRoom, getOrCreateClientSessionId } from '../socket'
-import type { HistoryItem, RoomState, SongSearchItem } from '../types'
+import type { HistoryItem, RoomActivity, RoomState, SongSearchItem } from '../types'
 
 export function RoomPage() {
   const { code = '' } = useParams()
@@ -14,6 +14,7 @@ export function RoomPage() {
   const [roomId, setRoomId] = useState<number | null>(null)
   const [state, setState] = useState<RoomState | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
+  const [activities, setActivities] = useState<RoomActivity[]>([])
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SongSearchItem[]>([])
   const [searching, setSearching] = useState(false)
@@ -36,6 +37,10 @@ export function RoomPage() {
     setHistory(await api.history(id))
   }, [])
 
+  const loadActivities = useCallback(async (id: number) => {
+    setActivities(await api.roomActivities(id))
+  }, [])
+
   useEffect(() => {
     let active = true
 
@@ -48,6 +53,7 @@ export function RoomPage() {
         setRoomId(member.roomId)
         await loadState(member.roomId)
         await loadHistory(member.roomId)
+        await loadActivities(member.roomId)
         setEntered(true)
       } catch (err) {
         if (active) {
@@ -60,7 +66,7 @@ export function RoomPage() {
     return () => {
       active = false
     }
-  }, [loadState, loadHistory])
+  }, [loadState, loadHistory, loadActivities])
 
   useEffect(() => {
     if (!entered || !roomId) {
@@ -71,10 +77,12 @@ export function RoomPage() {
       () => {
         void loadState(roomId)
         void loadHistory(roomId)
+        void loadActivities(roomId)
       },
       () => {
         void loadState(roomId)
         void loadHistory(roomId)
+        void loadActivities(roomId)
       },
     )
     socketRef.current = client
@@ -83,14 +91,15 @@ export function RoomPage() {
       client.deactivate()
       socketRef.current = null
     }
-  }, [entered, roomId, loadState, loadHistory])
+  }, [entered, roomId, loadState, loadHistory, loadActivities])
 
   const refresh = useCallback(() => {
     if (roomId) {
       void loadState(roomId)
       void loadHistory(roomId)
+      void loadActivities(roomId)
     }
-  }, [roomId, loadState, loadHistory])
+  }, [roomId, loadState, loadHistory, loadActivities])
 
   useEffect(() => {
     setLocalPaused(false)
@@ -320,6 +329,31 @@ export function RoomPage() {
         parseDurationSeconds(currentPlayback.song.duration),
       )
     : 0
+
+  const activityText = (activity: RoomActivity): string => {
+    const who = activity.actorDisplayName ?? ''
+    const song = activity.songTitle ? `"${activity.songTitle}"` : ''
+    switch (activity.type) {
+      case 'MEMBER_JOINED':
+        return `${who} entrou na sala`
+      case 'MEMBER_LEFT':
+        return `${who} saiu da sala`
+      case 'SONG_ADDED':
+        return `${who} adicionou ${song}`
+      case 'SONG_REMOVED':
+        return `${who} removeu ${song}`
+      case 'ROOM_RENAMED':
+        return `${who} mudou o nome da sala para "${activity.detail ?? ''}"`
+      case 'PLAYBACK_STARTED':
+        return `${song} começou a tocar`
+      case 'PLAYBACK_FINISHED':
+        return `${song} terminou`
+      case 'PLAYBACK_SKIPPED':
+        return `${song} foi pulada`
+      default:
+        return activity.type
+    }
+  }
 
   return (
     <div className="container stack">
@@ -566,6 +600,18 @@ export function RoomPage() {
                       {item.status} · {formatDuration(item.song.duration)}
                     </div>
                   </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="card stack">
+            <h3 style={{ margin: 0 }}>Atividade da sala</h3>
+            <div className="list">
+              {activities.length === 0 && <div className="muted">Nenhuma atividade ainda.</div>}
+              {activities.map((activity) => (
+                <div className="list-item" key={activity.id}>
+                  <div className="grow ellipsis">{activityText(activity)}</div>
                 </div>
               ))}
             </div>

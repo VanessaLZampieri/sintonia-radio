@@ -47,6 +47,27 @@ export interface RoomParticipant {
   avatarUrl: string | null
 }
 
+export type RoomActivityType =
+  | 'MEMBER_JOINED'
+  | 'MEMBER_LEFT'
+  | 'SONG_ADDED'
+  | 'SONG_REMOVED'
+  | 'ROOM_RENAMED'
+  | 'PLAYBACK_STARTED'
+  | 'PLAYBACK_FINISHED'
+  | 'PLAYBACK_SKIPPED'
+
+export interface RoomActivity {
+  id: number
+  type: RoomActivityType
+  actorUserId: number | null
+  actorDisplayName: string | null
+  songId: number | null
+  songTitle: string | null
+  detail: string | null
+  createdAt: string
+}
+
 export interface ActiveRoom {
   roomId: number
   name: string

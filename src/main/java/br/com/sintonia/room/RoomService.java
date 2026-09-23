@@ -1,5 +1,8 @@
 package br.com.sintonia.room;
 
+import br.com.sintonia.user.User;
+import br.com.sintonia.user.UserNotFoundException;
+import br.com.sintonia.user.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,11 +21,18 @@ public class RoomService {
 
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
+    private final UserRepository userRepository;
+    private final RoomActivityService roomActivityService;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public RoomService(RoomRepository roomRepository, RoomMemberRepository roomMemberRepository) {
+    public RoomService(RoomRepository roomRepository,
+                       RoomMemberRepository roomMemberRepository,
+                       UserRepository userRepository,
+                       RoomActivityService roomActivityService) {
         this.roomRepository = roomRepository;
         this.roomMemberRepository = roomMemberRepository;
+        this.userRepository = userRepository;
+        this.roomActivityService = roomActivityService;
     }
 
     public Room createRoom(String name) {
@@ -57,7 +67,11 @@ public class RoomService {
             throw new UserNotInRoomException("Usuário não está na sala.");
         }
 
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("Usuário não encontrado."));
+
         room.rename(trimmed);
+        roomActivityService.record(room, RoomActivityType.ROOM_RENAMED, user, null, trimmed);
         return RoomResponse.from(room);
     }
 

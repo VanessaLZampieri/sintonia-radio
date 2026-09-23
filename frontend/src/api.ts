@@ -6,6 +6,7 @@ import type {
   PlaybackModeState,
   QueueItem,
   Room,
+  RoomActivity,
   RoomMember,
   RoomPlayer,
   RoomState,
@@ -95,6 +96,9 @@ export const api = {
     request<void>(`/rooms/${encodeURIComponent(code)}/members`, { method: 'DELETE' }),
 
   roomState: (roomId: number) => request<RoomState>(`/api/rooms/${roomId}/state`),
+
+  roomActivities: (roomId: number) =>
+    request<RoomActivity[]>(`/api/rooms/${roomId}/activities`),
 
   searchSongs: (query: string, maxResults = 10) =>
     request<SongSearchItem[]>(

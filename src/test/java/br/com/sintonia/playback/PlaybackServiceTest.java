@@ -8,6 +8,9 @@ import br.com.sintonia.queue.QueueService;
 import br.com.sintonia.room.Room;
 import br.com.sintonia.room.NotThePlayerException;
 import br.com.sintonia.room.PlaybackMode;
+import br.com.sintonia.room.Room;
+import br.com.sintonia.room.RoomActivityService;
+import br.com.sintonia.room.RoomActivityType;
 import br.com.sintonia.room.RoomClosedException;
 import br.com.sintonia.room.RoomMemberRepository;
 import br.com.sintonia.room.RoomNotFoundException;
@@ -78,6 +81,9 @@ class PlaybackServiceTest {
     @Mock
     private AutoDjService autoDjService;
 
+    @Mock
+    private RoomActivityService roomActivityService;
+
     @InjectMocks
     private PlaybackService playbackService;
 
@@ -101,6 +107,10 @@ class PlaybackServiceTest {
         Playback result = playbackService.start(ROOM_ID, QUEUE_ITEM_ID);
 
         assertThat(result).isNotNull();
+
+        ArgumentCaptor<RoomActivityType> typeCaptor = ArgumentCaptor.forClass(RoomActivityType.class);
+        verify(roomActivityService).record(any(), typeCaptor.capture(), any(), any(), any());
+        assertThat(typeCaptor.getValue()).isEqualTo(RoomActivityType.PLAYBACK_STARTED);
     }
 
     @Test
@@ -218,6 +228,10 @@ class PlaybackServiceTest {
         Playback result = playbackService.finish(PLAYBACK_ID, USER_ID, null);
 
         assertThat(result).isSameAs(playback);
+
+        ArgumentCaptor<RoomActivityType> typeCaptor = ArgumentCaptor.forClass(RoomActivityType.class);
+        verify(roomActivityService).record(any(), typeCaptor.capture(), any(), any(), any());
+        assertThat(typeCaptor.getValue()).isEqualTo(RoomActivityType.PLAYBACK_FINISHED);
     }
 
     @Test
@@ -290,6 +304,10 @@ class PlaybackServiceTest {
         Playback result = playbackService.skip(PLAYBACK_ID);
 
         assertThat(result).isSameAs(playback);
+
+        ArgumentCaptor<RoomActivityType> typeCaptor = ArgumentCaptor.forClass(RoomActivityType.class);
+        verify(roomActivityService).record(any(), typeCaptor.capture(), any(), any(), any());
+        assertThat(typeCaptor.getValue()).isEqualTo(RoomActivityType.PLAYBACK_SKIPPED);
     }
 
     @Test

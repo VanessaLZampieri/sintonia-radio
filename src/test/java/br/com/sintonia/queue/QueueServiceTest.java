@@ -1,6 +1,7 @@
 package br.com.sintonia.queue;
 
 import br.com.sintonia.room.Room;
+import br.com.sintonia.room.RoomActivityType;
 import br.com.sintonia.room.RoomClosedException;
 import br.com.sintonia.room.RoomMemberRepository;
 import br.com.sintonia.room.RoomNotFoundException;
@@ -66,6 +67,9 @@ class QueueServiceTest {
     @Mock
     private RoomEventPublisher roomEventPublisher;
 
+    @Mock
+    private br.com.sintonia.room.RoomActivityService roomActivityService;
+
     @InjectMocks
     private QueueService queueService;
 
@@ -92,6 +96,10 @@ class QueueServiceTest {
         assertThat(result.getPosition()).isEqualTo(3);
         assertThat(result.getAddedAt()).isNotNull();
         verify(queueItemRepository).save(any(QueueItem.class));
+
+        ArgumentCaptor<RoomActivityType> typeCaptor = ArgumentCaptor.forClass(RoomActivityType.class);
+        verify(roomActivityService).record(any(), typeCaptor.capture(), any(), any(), any());
+        assertThat(typeCaptor.getValue()).isEqualTo(RoomActivityType.SONG_ADDED);
     }
 
     @Test
@@ -352,6 +360,10 @@ class QueueServiceTest {
 
         verify(queueItemRepository).findByIdAndRoomId(10L, ROOM_ID);
         verify(queueItemRepository).deleteById(10L);
+
+        ArgumentCaptor<RoomActivityType> typeCaptor = ArgumentCaptor.forClass(RoomActivityType.class);
+        verify(roomActivityService).record(any(), typeCaptor.capture(), any(), any(), any());
+        assertThat(typeCaptor.getValue()).isEqualTo(RoomActivityType.SONG_REMOVED);
     }
 
     @Test
