@@ -412,7 +412,12 @@ export function RoomPage() {
                       (member.displayName?.[0] ?? '?')
                     )}
                   </div>
-                  <div className="grow ellipsis">{member.displayName}</div>
+                  <div className="grow">
+                    <div className="ellipsis">{member.displayName}</div>
+                    <div className="muted" style={{ fontSize: '0.85rem' }}>
+                      {member.waitingCount}/8 músicas na fila
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

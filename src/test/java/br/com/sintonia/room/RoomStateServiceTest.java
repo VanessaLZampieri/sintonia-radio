@@ -7,6 +7,7 @@ import br.com.sintonia.playback.SkipVoteRepository;
 import br.com.sintonia.queue.QueueItem;
 import br.com.sintonia.queue.QueueItemRepository;
 import br.com.sintonia.queue.QueueItemSource;
+import br.com.sintonia.queue.QueueItemStatus;
 import br.com.sintonia.song.Song;
 import br.com.sintonia.user.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -256,6 +257,8 @@ class RoomStateServiceTest {
         RoomMember member = new RoomMember(room, memberUser);
         when(roomMemberRepository.findAllByRoomIdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(ROOM_ID))
                 .thenReturn(List.of(member));
+        when(queueItemRepository.countWaitingByUser(ROOM_ID, QueueItemStatus.WAITING))
+                .thenReturn(List.<Object[]>of(new Object[]{200L, 3L}));
 
         RoomStateResponse result = roomStateService.get(ROOM_ID, USER_ID);
 
@@ -263,6 +266,7 @@ class RoomStateServiceTest {
         assertThat(result.members().get(0).userId()).isEqualTo(200L);
         assertThat(result.members().get(0).displayName()).isEqualTo("Ana");
         assertThat(result.members().get(0).avatarUrl()).isEqualTo("https://img/ana.jpg");
+        assertThat(result.members().get(0).waitingCount()).isEqualTo(3L);
     }
 
     private void stubRoom() {

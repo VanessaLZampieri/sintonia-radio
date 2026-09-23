@@ -7,13 +7,16 @@ import br.com.sintonia.playback.SkipVoteRepository;
 import br.com.sintonia.playback.SkipVoteService;
 import br.com.sintonia.queue.QueueItem;
 import br.com.sintonia.queue.QueueItemRepository;
+import br.com.sintonia.queue.QueueItemStatus;
 import br.com.sintonia.song.Song;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class RoomStateService {
@@ -62,8 +65,13 @@ public class RoomStateService {
     }
 
     private List<RoomParticipantResponse> membersState(Long roomId) {
+        Map<Long, Long> waitingCounts = queueItemRepository
+                .countWaitingByUser(roomId, QueueItemStatus.WAITING).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
+
         return roomMemberRepository.findAllByRoomIdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(roomId).stream()
-                .map(RoomParticipantResponse::from)
+                .map(member -> RoomParticipantResponse.from(
+                        member, waitingCounts.getOrDefault(member.getUser().getId(), 0L)))
                 .toList();
     }
 

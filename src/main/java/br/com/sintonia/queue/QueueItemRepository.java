@@ -4,16 +4,22 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface QueueItemRepository extends JpaRepository<QueueItem, Long> {
 
-    boolean existsByRoomIdAndSongId(Long roomId, Long songId);
+    boolean existsByRoomIdAndSongIdAndStatusIn(Long roomId, Long songId, Collection<QueueItemStatus> statuses);
 
-    long countByRoomIdAndUserId(Long roomId, Long userId);
+    long countByRoomIdAndUserIdAndStatus(Long roomId, Long userId, QueueItemStatus status);
 
     long countByRoomIdAndStatus(Long roomId, QueueItemStatus status);
+
+    @Query("SELECT q.user.id, COUNT(q) FROM QueueItem q "
+            + "WHERE q.room.id = :roomId AND q.status = :status AND q.user IS NOT NULL "
+            + "GROUP BY q.user.id")
+    List<Object[]> countWaitingByUser(@Param("roomId") Long roomId, @Param("status") QueueItemStatus status);
 
     @Query("SELECT COALESCE(MAX(q.position), 0) FROM QueueItem q WHERE q.room.id = :roomId")
     Integer findMaxPositionByRoomId(@Param("roomId") Long roomId);

@@ -33,9 +33,7 @@ public class SongController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "'maxResults' deve estar entre 1 e " + MAX_RESULTS_LIMIT + ".");
         }
-        return youTubeSongService.search(query, maxResults).items().stream()
-                .map(SongSearchItemResponse::from)
-                .toList();
+        return youTubeSongService.search(query, maxResults);
     }
 
     @GetMapping("/{youtubeVideoId}")

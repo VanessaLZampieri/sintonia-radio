@@ -1,5 +1,7 @@
 package br.com.sintonia.room;
 
+import br.com.sintonia.queue.QueueItemRepository;
+import br.com.sintonia.queue.QueueItemStatus;
 import br.com.sintonia.user.User;
 import br.com.sintonia.user.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -31,6 +33,9 @@ class RoomMemberServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private QueueItemRepository queueItemRepository;
 
     @Mock
     private RoomActivityService roomActivityService;
@@ -131,6 +136,7 @@ class RoomMemberServiceTest {
         when(roomRepository.findById(1L)).thenReturn(Optional.of(room));
         when(roomMemberRepository.findAllByRoomIdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(1L))
                 .thenReturn(List.of(m1, m2));
+        when(queueItemRepository.countWaitingByUser(1L, QueueItemStatus.WAITING)).thenReturn(List.of());
 
         List<RoomParticipantResponse> result = roomMemberService.findPresent(1L);
 
@@ -138,9 +144,29 @@ class RoomMemberServiceTest {
         assertThat(result.get(0).userId()).isEqualTo(10L);
         assertThat(result.get(0).displayName()).isEqualTo("Ana");
         assertThat(result.get(0).avatarUrl()).isEqualTo("https://img/ana.jpg");
+        assertThat(result.get(0).waitingCount()).isZero();
         assertThat(result.get(1).userId()).isEqualTo(11L);
         assertThat(result.get(1).displayName()).isEqualTo("Bruno");
         assertThat(result.get(1).avatarUrl()).isNull();
+    }
+
+    @Test
+    void findPresentIncludesWaitingCount() {
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", 1L);
+        User ana = user(10L, "Ana Souza", null);
+        RoomMember m1 = new RoomMember(room, ana);
+
+        when(roomRepository.findById(1L)).thenReturn(Optional.of(room));
+        when(roomMemberRepository.findAllByRoomIdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(1L))
+                .thenReturn(List.of(m1));
+        when(queueItemRepository.countWaitingByUser(1L, QueueItemStatus.WAITING))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, 3L}));
+
+        List<RoomParticipantResponse> result = roomMemberService.findPresent(1L);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).waitingCount()).isEqualTo(3L);
     }
 
     @Test
@@ -150,6 +176,7 @@ class RoomMemberServiceTest {
         when(roomRepository.findById(1L)).thenReturn(Optional.of(room));
         when(roomMemberRepository.findAllByRoomIdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(1L))
                 .thenReturn(List.of());
+        when(queueItemRepository.countWaitingByUser(1L, QueueItemStatus.WAITING)).thenReturn(List.of());
 
         assertThat(roomMemberService.findPresent(1L)).isEmpty();
     }

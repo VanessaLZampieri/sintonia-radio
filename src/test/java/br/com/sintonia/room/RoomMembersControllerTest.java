@@ -32,14 +32,15 @@ class RoomMembersControllerTest {
     @Test
     void returnsPresentMembers() throws Exception {
         when(roomMemberService.findPresent(ROOM_ID)).thenReturn(List.of(
-                new RoomParticipantResponse(10L, "Ana", "https://img/ana.jpg"),
-                new RoomParticipantResponse(11L, "Bruno", null)));
+                new RoomParticipantResponse(10L, "Ana", "https://img/ana.jpg", 3L),
+                new RoomParticipantResponse(11L, "Bruno", null, 0L)));
 
         mockMvc.perform(get("/api/rooms/{roomId}/members", ROOM_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].userId").value(10))
                 .andExpect(jsonPath("$[0].displayName").value("Ana"))
                 .andExpect(jsonPath("$[0].avatarUrl").value("https://img/ana.jpg"))
+                .andExpect(jsonPath("$[0].waitingCount").value(3))
                 .andExpect(jsonPath("$[1].userId").value(11))
                 .andExpect(jsonPath("$[1].displayName").value("Bruno"))
                 .andExpect(jsonPath("$[1].avatarUrl").isEmpty());

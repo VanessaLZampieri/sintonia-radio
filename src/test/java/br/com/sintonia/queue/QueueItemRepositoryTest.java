@@ -15,7 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.lang.reflect.Constructor;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,57 +33,73 @@ class QueueItemRepositoryTest {
     private EntityManager entityManager;
 
     @Test
-    void existsWhenSongIsInRoom() {
+    void existsByStatusInIsTrueForWaitingAndPlaying() {
         Room room = persistRoom("QT000001");
-        Song song = persistSong("song-1");
         User user = persistUser("g1", "e1@example.com");
-        persistQueueItem(room, song, user, 1);
+        Song waitingSong = persistSong("song-1w");
+        Song playingSong = persistSong("song-1p");
+        persistQueueItem(room, waitingSong, user, 1, QueueItemStatus.WAITING);
+        persistQueueItem(room, playingSong, user, 2, QueueItemStatus.PLAYING);
 
-        assertThat(queueItemRepository.existsByRoomIdAndSongId(room.getId(), song.getId())).isTrue();
+        List<QueueItemStatus> active = List.of(QueueItemStatus.WAITING, QueueItemStatus.PLAYING);
+
+        assertThat(queueItemRepository.existsByRoomIdAndSongIdAndStatusIn(
+                room.getId(), waitingSong.getId(), active)).isTrue();
+        assertThat(queueItemRepository.existsByRoomIdAndSongIdAndStatusIn(
+                room.getId(), playingSong.getId(), active)).isTrue();
     }
 
     @Test
-    void doesNotExistWhenSongIsNotInRoom() {
+    void existsByStatusInIsFalseForFinishedSkippedAndError() {
         Room room = persistRoom("QT000002");
-        Song song = persistSong("song-2");
+        User user = persistUser("g2", "e2@example.com");
+        Song finished = persistSong("song-2f");
+        Song skipped = persistSong("song-2s");
+        Song error = persistSong("song-2e");
+        persistQueueItem(room, finished, user, 1, QueueItemStatus.FINISHED);
+        persistQueueItem(room, skipped, user, 2, QueueItemStatus.SKIPPED);
+        persistQueueItem(room, error, user, 3, QueueItemStatus.ERROR);
 
-        assertThat(queueItemRepository.existsByRoomIdAndSongId(room.getId(), song.getId())).isFalse();
+        List<QueueItemStatus> active = List.of(QueueItemStatus.WAITING, QueueItemStatus.PLAYING);
+
+        assertThat(queueItemRepository.existsByRoomIdAndSongIdAndStatusIn(
+                room.getId(), finished.getId(), active)).isFalse();
+        assertThat(queueItemRepository.existsByRoomIdAndSongIdAndStatusIn(
+                room.getId(), skipped.getId(), active)).isFalse();
+        assertThat(queueItemRepository.existsByRoomIdAndSongIdAndStatusIn(
+                room.getId(), error.getId(), active)).isFalse();
     }
 
     @Test
-    void scopesExistenceByRoom() {
-        Room room1 = persistRoom("QT000003");
-        Room room2 = persistRoom("QT000004");
-        Song song = persistSong("song-3");
+    void countsOnlyWaitingSongsByUser() {
+        Room room = persistRoom("QT000003");
         User user = persistUser("g3", "e3@example.com");
-        persistQueueItem(room1, song, user, 1);
+        persistQueueItem(room, persistSong("song-3a"), user, 1, QueueItemStatus.WAITING);
+        persistQueueItem(room, persistSong("song-3b"), user, 2, QueueItemStatus.WAITING);
+        persistQueueItem(room, persistSong("song-3c"), user, 3, QueueItemStatus.PLAYING);
+        persistQueueItem(room, persistSong("song-3d"), user, 4, QueueItemStatus.FINISHED);
+        persistQueueItem(room, persistSong("song-3e"), user, 5, QueueItemStatus.SKIPPED);
+        persistQueueItem(room, persistSong("song-3f"), user, 6, QueueItemStatus.ERROR);
 
-        assertThat(queueItemRepository.existsByRoomIdAndSongId(room1.getId(), song.getId())).isTrue();
-        assertThat(queueItemRepository.existsByRoomIdAndSongId(room2.getId(), song.getId())).isFalse();
+        assertThat(queueItemRepository.countByRoomIdAndUserIdAndStatus(
+                room.getId(), user.getId(), QueueItemStatus.WAITING)).isEqualTo(2L);
     }
 
     @Test
-    void countsSongsAddedByUser() {
-        Room room = persistRoom("QT000005");
-        User user = persistUser("g4", "e4@example.com");
-        persistQueueItem(room, persistSong("song-4a"), user, 1);
-        persistQueueItem(room, persistSong("song-4b"), user, 2);
-        persistQueueItem(room, persistSong("song-4c"), user, 3);
+    void countWaitingByUserGroupsByUser() {
+        Room room = persistRoom("QT000004");
+        User user1 = persistUser("g4a", "e4a@example.com");
+        User user2 = persistUser("g4b", "e4b@example.com");
+        persistQueueItem(room, persistSong("song-4a"), user1, 1, QueueItemStatus.WAITING);
+        persistQueueItem(room, persistSong("song-4b"), user1, 2, QueueItemStatus.WAITING);
+        persistQueueItem(room, persistSong("song-4c"), user2, 3, QueueItemStatus.WAITING);
+        persistQueueItem(room, persistSong("song-4d"), user1, 4, QueueItemStatus.FINISHED);
 
-        assertThat(queueItemRepository.countByRoomIdAndUserId(room.getId(), user.getId())).isEqualTo(3L);
-    }
+        Map<Long, Long> byUser = queueItemRepository.countWaitingByUser(room.getId(), QueueItemStatus.WAITING)
+                .stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
 
-    @Test
-    void countsIndependentlyPerUser() {
-        Room room = persistRoom("QT000006");
-        User user1 = persistUser("g5a", "e5a@example.com");
-        User user2 = persistUser("g5b", "e5b@example.com");
-        persistQueueItem(room, persistSong("song-5a"), user1, 1);
-        persistQueueItem(room, persistSong("song-5b"), user1, 2);
-        persistQueueItem(room, persistSong("song-5c"), user2, 3);
-
-        assertThat(queueItemRepository.countByRoomIdAndUserId(room.getId(), user1.getId())).isEqualTo(2L);
-        assertThat(queueItemRepository.countByRoomIdAndUserId(room.getId(), user2.getId())).isEqualTo(1L);
+        assertThat(byUser).containsEntry(user1.getId(), 2L).containsEntry(user2.getId(), 1L);
     }
 
     @Test

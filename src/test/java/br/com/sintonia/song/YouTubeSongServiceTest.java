@@ -1,6 +1,7 @@
 package br.com.sintonia.song;
 
 import br.com.sintonia.youtube.YouTubeClient;
+import br.com.sintonia.youtube.YouTubeSearchItem;
 import br.com.sintonia.youtube.YouTubeSearchResponse;
 import br.com.sintonia.youtube.YouTubeVideoDetails;
 import org.junit.jupiter.api.Test;
@@ -11,13 +12,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,15 +34,66 @@ class YouTubeSongServiceTest {
     private YouTubeSongService youTubeSongService;
 
     @Test
-    void searchDelegatesToYouTubeClientWithoutSaving() {
-        YouTubeSearchResponse response = new YouTubeSearchResponse(List.of());
-        when(youTubeClient.search("Nando Reis", 10)).thenReturn(response);
+    void searchFiltersNonEmbeddableAndLive() {
+        when(youTubeClient.search("q", 10)).thenReturn(response(item("a", "A"), item("b", "B"), item("c", "C")));
+        when(youTubeClient.getVideoDetailsBatch(List.of("a", "b", "c"))).thenReturn(Map.of(
+                "a", details("a", true, false),
+                "b", details("b", false, false),
+                "c", details("c", true, true)));
 
-        YouTubeSearchResponse result = youTubeSongService.search("Nando Reis", 10);
+        List<SongSearchItemResponse> result = youTubeSongService.search("q", 10);
 
-        assertThat(result).isSameAs(response);
-        verify(youTubeClient).search("Nando Reis", 10);
-        verifyNoInteractions(songService);
+        assertThat(result).extracting(SongSearchItemResponse::videoId).containsExactly("a");
+    }
+
+    @Test
+    void searchPreservesRelativeOrder() {
+        when(youTubeClient.search("q", 10)).thenReturn(response(item("a", "A"), item("b", "B"), item("c", "C")));
+        when(youTubeClient.getVideoDetailsBatch(List.of("a", "b", "c"))).thenReturn(Map.of(
+                "a", details("a", true, false),
+                "b", details("b", true, false),
+                "c", details("c", true, false)));
+
+        List<SongSearchItemResponse> result = youTubeSongService.search("q", 10);
+
+        assertThat(result).extracting(SongSearchItemResponse::videoId).containsExactly("a", "b", "c");
+    }
+
+    @Test
+    void searchDeduplicatesRepeatedVideoId() {
+        when(youTubeClient.search("q", 10)).thenReturn(response(item("a", "A"), item("a", "A")));
+        when(youTubeClient.getVideoDetailsBatch(List.of("a"))).thenReturn(Map.of("a", details("a", true, false)));
+
+        List<SongSearchItemResponse> result = youTubeSongService.search("q", 10);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).videoId()).isEqualTo("a");
+    }
+
+    @Test
+    void searchEnrichesInBatch() {
+        when(youTubeClient.search("q", 10)).thenReturn(response(item("a", "A"), item("b", "B")));
+        when(youTubeClient.getVideoDetailsBatch(List.of("a", "b"))).thenReturn(Map.of(
+                "a", details("a", true, false),
+                "b", details("b", true, false)));
+
+        youTubeSongService.search("q", 10);
+
+        verify(youTubeClient).getVideoDetailsBatch(List.of("a", "b"));
+        verify(youTubeClient, never()).getVideoDetails(any());
+    }
+
+    @Test
+    void searchEnrichesWithChannelAndDuration() {
+        when(youTubeClient.search("q", 10)).thenReturn(response(item("a", "Title A")));
+        YouTubeVideoDetails d = new YouTubeVideoDetails("a", "Title A", "Channel X", null,
+                Duration.ofMinutes(4).plusSeconds(13), true, false);
+        when(youTubeClient.getVideoDetailsBatch(List.of("a"))).thenReturn(Map.of("a", d));
+
+        List<SongSearchItemResponse> result = youTubeSongService.search("q", 10);
+
+        assertThat(result.get(0).channelTitle()).isEqualTo("Channel X");
+        assertThat(result.get(0).duration()).isEqualTo("PT4M13S");
     }
 
     @Test
@@ -59,7 +111,7 @@ class YouTubeSongServiceTest {
     @Test
     void selectFetchesDetailsAndCreatesNewSong() {
         YouTubeVideoDetails details = new YouTubeVideoDetails(
-                "abc123", "New Title", "https://img/1.jpg", Duration.ofSeconds(100));
+                "abc123", "New Title", "Channel", "https://img/1.jpg", Duration.ofSeconds(100), true, false);
         Song created = new Song("abc123", "New Title", "https://img/1.jpg", Duration.ofSeconds(100));
 
         when(songService.findByYoutubeVideoId("abc123")).thenReturn(Optional.empty());
@@ -83,5 +135,17 @@ class YouTubeSongServiceTest {
 
         assertThat(result).isEmpty();
         verify(songService, never()).findOrCreate(any(), any(), any(), any());
+    }
+
+    private YouTubeSearchResponse response(YouTubeSearchItem... items) {
+        return new YouTubeSearchResponse(List.of(items));
+    }
+
+    private YouTubeSearchItem item(String videoId, String title) {
+        return new YouTubeSearchItem(new YouTubeSearchItem.ItemId(videoId), new YouTubeSearchItem.Snippet(title));
+    }
+
+    private YouTubeVideoDetails details(String id, boolean embeddable, boolean live) {
+        return new YouTubeVideoDetails(id, "Title " + id, "Channel", null, Duration.ofSeconds(100), embeddable, live);
     }
 }

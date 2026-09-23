@@ -147,11 +147,13 @@ public class QueueService {
         Song song = songRepository.findById(songId)
                 .orElseThrow(() -> new SongNotFoundException("Música não encontrada."));
 
-        if (queueItemRepository.existsByRoomIdAndSongId(roomId, songId)) {
+        if (queueItemRepository.existsByRoomIdAndSongIdAndStatusIn(
+                roomId, songId, List.of(QueueItemStatus.WAITING, QueueItemStatus.PLAYING))) {
             throw new SongAlreadyInQueueException("Esta música já está na fila.");
         }
 
-        if (queueItemRepository.countByRoomIdAndUserId(roomId, userId) >= MAX_SONGS_PER_USER) {
+        if (queueItemRepository.countByRoomIdAndUserIdAndStatus(roomId, userId, QueueItemStatus.WAITING)
+                >= MAX_SONGS_PER_USER) {
             throw new QueueLimitExceededException(
                     "O usuário já possui " + MAX_SONGS_PER_USER + " músicas na fila.");
         }

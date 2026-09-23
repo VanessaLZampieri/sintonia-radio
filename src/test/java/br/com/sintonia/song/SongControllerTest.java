@@ -1,7 +1,5 @@
 package br.com.sintonia.song;
 
-import br.com.sintonia.youtube.YouTubeSearchItem;
-import br.com.sintonia.youtube.YouTubeSearchResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -33,22 +31,22 @@ class SongControllerTest {
 
     @Test
     void searchesSongs() throws Exception {
-        YouTubeSearchResponse response = new YouTubeSearchResponse(List.of(
-                new YouTubeSearchItem(new YouTubeSearchItem.ItemId("abc123"),
-                        new YouTubeSearchItem.Snippet("Title A"))));
-        when(youTubeSongService.search("Nando Reis", 10)).thenReturn(response);
+        when(youTubeSongService.search("Nando Reis", 10)).thenReturn(List.of(
+                new SongSearchItemResponse("abc123", "Title A", "Channel", "PT4M13S")));
 
         mockMvc.perform(get("/api/songs/search").param("q", "Nando Reis"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].videoId").value("abc123"))
-                .andExpect(jsonPath("$[0].title").value("Title A"));
+                .andExpect(jsonPath("$[0].title").value("Title A"))
+                .andExpect(jsonPath("$[0].channelTitle").value("Channel"))
+                .andExpect(jsonPath("$[0].duration").value("PT4M13S"));
 
         verify(youTubeSongService).search("Nando Reis", 10);
     }
 
     @Test
     void searchesSongsWithMaxResults() throws Exception {
-        when(youTubeSongService.search("Nando Reis", 5)).thenReturn(new YouTubeSearchResponse(List.of()));
+        when(youTubeSongService.search("Nando Reis", 5)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/songs/search").param("q", "Nando Reis").param("maxResults", "5"))
                 .andExpect(status().isOk());

@@ -8,6 +8,8 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,60 +32,78 @@ class YouTubeClientTest {
     }
 
     @Test
-    void convertsIso8601Duration() {
-        String url = BASE_URL + "/videos?part=snippet,contentDetails&id=abc123&key=test-api-key";
+    void searchIncludesEmbeddableFilter() {
+        String url = BASE_URL + "/search?part=snippet&type=video&videoEmbeddable=true&q=foo&maxResults=5&key=test-api-key";
         server.expect(requestTo(url))
                 .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("{\"items\":[]}", MediaType.APPLICATION_JSON));
+
+        YouTubeSearchResponse result = youTubeClient.search("foo", 5);
+
+        assertThat(result).isNotNull();
+        assertThat(result.items()).isEmpty();
+    }
+
+    @Test
+    void convertsIso8601DurationAndParsesStatus() {
+        String url = BASE_URL + "/videos?part=snippet,contentDetails,status&id=abc123&key=test-api-key";
+        server.expect(requestTo(url))
                 .andRespond(withSuccess(
                         "{\"items\":[{\"id\":\"abc123\","
-                                + "\"snippet\":{\"title\":\"T\",\"thumbnails\":{\"medium\":{\"url\":\"https://img/1.jpg\"}}},"
-                                + "\"contentDetails\":{\"duration\":\"PT4M13S\"}}]}",
+                                + "\"snippet\":{\"title\":\"T\",\"channelTitle\":\"C\","
+                                + "\"thumbnails\":{\"medium\":{\"url\":\"https://img/1.jpg\"}}},"
+                                + "\"contentDetails\":{\"duration\":\"PT4M13S\"},"
+                                + "\"status\":{\"embeddable\":true,\"liveBroadcastContent\":\"none\"}}]}",
                         MediaType.APPLICATION_JSON));
 
         Optional<YouTubeVideoDetails> result = youTubeClient.getVideoDetails("abc123");
 
         assertThat(result).isPresent();
         assertThat(result.get().duration()).isEqualTo(Duration.ofMinutes(4).plusSeconds(13));
+        assertThat(result.get().channelTitle()).isEqualTo("C");
+        assertThat(result.get().embeddable()).isTrue();
+        assertThat(result.get().live()).isFalse();
     }
 
     @Test
-    void convertsDurationWithHours() {
-        String url = BASE_URL + "/videos?part=snippet,contentDetails&id=xyz789&key=test-api-key";
+    void batchReturnsOnlyItemsWithValidDuration() {
+        String url = BASE_URL + "/videos?part=snippet,contentDetails,status&id=abc123,missing&key=test-api-key";
         server.expect(requestTo(url))
                 .andRespond(withSuccess(
-                        "{\"items\":[{\"id\":\"xyz789\","
-                                + "\"snippet\":{\"title\":\"T\",\"thumbnails\":{\"medium\":{\"url\":\"https://img/1.jpg\"}}},"
-                                + "\"contentDetails\":{\"duration\":\"PT1H2M30S\"}}]}",
+                        "{\"items\":["
+                                + "{\"id\":\"abc123\",\"snippet\":{\"title\":\"T\",\"channelTitle\":\"C\","
+                                + "\"thumbnails\":{\"medium\":{\"url\":\"https://img/1.jpg\"}}},"
+                                + "\"contentDetails\":{\"duration\":\"PT4M13S\"},"
+                                + "\"status\":{\"embeddable\":true,\"liveBroadcastContent\":\"none\"}},"
+                                + "{\"id\":\"missing\",\"snippet\":{\"title\":\"NoDur\"},"
+                                + "\"contentDetails\":{\"duration\":null},"
+                                + "\"status\":{\"embeddable\":true,\"liveBroadcastContent\":\"none\"}}"
+                                + "]}",
                         MediaType.APPLICATION_JSON));
 
-        Optional<YouTubeVideoDetails> result = youTubeClient.getVideoDetails("xyz789");
+        Map<String, YouTubeVideoDetails> result = youTubeClient.getVideoDetailsBatch(List.of("abc123", "missing"));
 
-        assertThat(result).isPresent();
-        assertThat(result.get().duration()).isEqualTo(Duration.ofHours(1).plusMinutes(2).plusSeconds(30));
+        assertThat(result).containsOnlyKeys("abc123");
     }
 
     @Test
-    void returnsVideoDetailsWhenFound() {
-        String url = BASE_URL + "/videos?part=snippet,contentDetails&id=abc123&key=test-api-key";
+    void batchParsesLiveStatus() {
+        String url = BASE_URL + "/videos?part=snippet,contentDetails,status&id=live1&key=test-api-key";
         server.expect(requestTo(url))
                 .andRespond(withSuccess(
-                        "{\"items\":[{\"id\":\"abc123\","
-                                + "\"snippet\":{\"title\":\"Some Title\",\"thumbnails\":{\"medium\":{\"url\":\"https://img/1.jpg\"}}},"
-                                + "\"contentDetails\":{\"duration\":\"PT4M13S\"}}]}",
+                        "{\"items\":[{\"id\":\"live1\",\"snippet\":{\"title\":\"Live\"},"
+                                + "\"contentDetails\":{\"duration\":\"PT1H\"},"
+                                + "\"status\":{\"embeddable\":true,\"liveBroadcastContent\":\"live\"}}]}",
                         MediaType.APPLICATION_JSON));
 
-        Optional<YouTubeVideoDetails> result = youTubeClient.getVideoDetails("abc123");
+        Map<String, YouTubeVideoDetails> result = youTubeClient.getVideoDetailsBatch(List.of("live1"));
 
-        assertThat(result).isPresent();
-        assertThat(result.get().videoId()).isEqualTo("abc123");
-        assertThat(result.get().title()).isEqualTo("Some Title");
-        assertThat(result.get().thumbnailUrl()).isEqualTo("https://img/1.jpg");
-        assertThat(result.get().duration()).isEqualTo(Duration.ofMinutes(4).plusSeconds(13));
+        assertThat(result.get("live1").live()).isTrue();
     }
 
     @Test
     void returnsEmptyWhenVideoNotFound() {
-        String url = BASE_URL + "/videos?part=snippet,contentDetails&id=missing&key=test-api-key";
+        String url = BASE_URL + "/videos?part=snippet,contentDetails,status&id=missing&key=test-api-key";
         server.expect(requestTo(url))
                 .andRespond(withSuccess("{\"items\":[]}", MediaType.APPLICATION_JSON));
 

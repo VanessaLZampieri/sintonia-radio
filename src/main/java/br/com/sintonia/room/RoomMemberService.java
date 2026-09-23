@@ -1,5 +1,7 @@
 package br.com.sintonia.room;
 
+import br.com.sintonia.queue.QueueItemRepository;
+import br.com.sintonia.queue.QueueItemStatus;
 import br.com.sintonia.user.User;
 import br.com.sintonia.user.UserNotFoundException;
 import br.com.sintonia.user.UserRepository;
@@ -8,7 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class RoomMemberService {
@@ -18,15 +22,18 @@ public class RoomMemberService {
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final UserRepository userRepository;
+    private final QueueItemRepository queueItemRepository;
     private final RoomActivityService roomActivityService;
 
     public RoomMemberService(RoomRepository roomRepository,
                              RoomMemberRepository roomMemberRepository,
                              UserRepository userRepository,
+                             QueueItemRepository queueItemRepository,
                              RoomActivityService roomActivityService) {
         this.roomRepository = roomRepository;
         this.roomMemberRepository = roomMemberRepository;
         this.userRepository = userRepository;
+        this.queueItemRepository = queueItemRepository;
         this.roomActivityService = roomActivityService;
     }
 
@@ -94,8 +101,13 @@ public class RoomMemberService {
             throw new RoomClosedException("Esta sala foi encerrada.");
         }
 
+        Map<Long, Long> waitingCounts = queueItemRepository
+                .countWaitingByUser(roomId, QueueItemStatus.WAITING).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
+
         return roomMemberRepository.findAllByRoomIdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(roomId).stream()
-                .map(RoomParticipantResponse::from)
+                .map(member -> RoomParticipantResponse.from(
+                        member, waitingCounts.getOrDefault(member.getUser().getId(), 0L)))
                 .toList();
     }
 }

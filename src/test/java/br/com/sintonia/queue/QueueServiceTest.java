@@ -185,7 +185,8 @@ class QueueServiceTest {
         when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
         when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
         when(songRepository.findById(SONG_ID)).thenReturn(Optional.of(song));
-        when(queueItemRepository.existsByRoomIdAndSongId(ROOM_ID, SONG_ID)).thenReturn(true);
+        when(queueItemRepository.existsByRoomIdAndSongIdAndStatusIn(eq(ROOM_ID), eq(SONG_ID), any()))
+                .thenReturn(true);
 
         assertThatThrownBy(() -> queueService.add(ROOM_ID, SONG_ID, USER_ID))
                 .isInstanceOf(SongAlreadyInQueueException.class);
@@ -194,11 +195,23 @@ class QueueServiceTest {
     }
 
     @Test
+    void duplicateCheckUsesWaitingAndPlayingStatuses() {
+        stubHappyPath(0, 0L);
+
+        queueService.add(ROOM_ID, SONG_ID, USER_ID);
+
+        verify(queueItemRepository).existsByRoomIdAndSongIdAndStatusIn(
+                eq(ROOM_ID), eq(SONG_ID),
+                eq(List.of(QueueItemStatus.WAITING, QueueItemStatus.PLAYING)));
+    }
+
+    @Test
     void rejectedAddDoesNotPublishEvent() {
         when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
         when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
         when(songRepository.findById(SONG_ID)).thenReturn(Optional.of(song));
-        when(queueItemRepository.existsByRoomIdAndSongId(ROOM_ID, SONG_ID)).thenReturn(true);
+        when(queueItemRepository.existsByRoomIdAndSongIdAndStatusIn(eq(ROOM_ID), eq(SONG_ID), any()))
+                .thenReturn(true);
 
         assertThatThrownBy(() -> queueService.add(ROOM_ID, SONG_ID, USER_ID))
                 .isInstanceOf(SongAlreadyInQueueException.class);
@@ -207,12 +220,14 @@ class QueueServiceTest {
     }
 
     @Test
-    void rejectsWhenUserReachedEightSongs() {
+    void rejectsWhenUserReachedEightWaitingSongs() {
         when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
         when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
         when(songRepository.findById(SONG_ID)).thenReturn(Optional.of(song));
-        when(queueItemRepository.existsByRoomIdAndSongId(ROOM_ID, SONG_ID)).thenReturn(false);
-        when(queueItemRepository.countByRoomIdAndUserId(ROOM_ID, USER_ID)).thenReturn(8L);
+        when(queueItemRepository.existsByRoomIdAndSongIdAndStatusIn(eq(ROOM_ID), eq(SONG_ID), any()))
+                .thenReturn(false);
+        when(queueItemRepository.countByRoomIdAndUserIdAndStatus(ROOM_ID, USER_ID, QueueItemStatus.WAITING))
+                .thenReturn(8L);
 
         assertThatThrownBy(() -> queueService.add(ROOM_ID, SONG_ID, USER_ID))
                 .isInstanceOf(QueueLimitExceededException.class);
@@ -221,7 +236,7 @@ class QueueServiceTest {
     }
 
     @Test
-    void allowsWhenUserHasSevenSongs() {
+    void allowsWhenUserHasSevenWaitingSongs() {
         stubHappyPath(0, 7L);
 
         QueueItem result = queueService.add(ROOM_ID, SONG_ID, USER_ID);
@@ -231,21 +246,23 @@ class QueueServiceTest {
     }
 
     @Test
-    void limitIsBasedOnQueueItemsNotMembership() {
+    void limitIsBasedOnWaitingQueueItems() {
         stubHappyPath(0, 0L);
 
         queueService.add(ROOM_ID, SONG_ID, USER_ID);
 
-        verify(queueItemRepository).countByRoomIdAndUserId(ROOM_ID, USER_ID);
+        verify(queueItemRepository).countByRoomIdAndUserIdAndStatus(ROOM_ID, USER_ID, QueueItemStatus.WAITING);
         verify(roomMemberRepository, never()).countByRoomAndLeftAtIsNull(any());
     }
 
-    private void stubHappyPath(int maxPosition, long userCount) {
+    private void stubHappyPath(int maxPosition, long waitingCount) {
         when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
         when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
         when(songRepository.findById(SONG_ID)).thenReturn(Optional.of(song));
-        when(queueItemRepository.existsByRoomIdAndSongId(ROOM_ID, SONG_ID)).thenReturn(false);
-        when(queueItemRepository.countByRoomIdAndUserId(ROOM_ID, USER_ID)).thenReturn(userCount);
+        when(queueItemRepository.existsByRoomIdAndSongIdAndStatusIn(eq(ROOM_ID), eq(SONG_ID), any()))
+                .thenReturn(false);
+        when(queueItemRepository.countByRoomIdAndUserIdAndStatus(ROOM_ID, USER_ID, QueueItemStatus.WAITING))
+                .thenReturn(waitingCount);
         when(queueItemRepository.findMaxPositionByRoomId(ROOM_ID)).thenReturn(maxPosition);
         when(userRepository.getReferenceById(USER_ID)).thenReturn(user);
         when(queueItemRepository.save(any(QueueItem.class))).thenAnswer(invocation -> {

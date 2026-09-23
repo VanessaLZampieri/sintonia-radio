@@ -45,6 +45,7 @@ export interface RoomParticipant {
   userId: number
   displayName: string
   avatarUrl: string | null
+  waitingCount: number
 }
 
 export type RoomActivityType =
@@ -102,6 +103,8 @@ export interface Song {
 export interface SongSearchItem {
   videoId: string | null
   title: string | null
+  channelTitle?: string | null
+  duration?: string | null
 }
 
 export interface AddedBy {
