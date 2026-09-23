@@ -18,8 +18,10 @@ public class SongService {
         return songRepository.findByYoutubeVideoId(youtubeVideoId);
     }
 
-    public Song findOrCreate(String youtubeVideoId, String title, String thumbnailUrl, Duration duration) {
+    public Song findOrCreate(String youtubeVideoId, String title, String thumbnailUrl, Duration duration,
+                             String channelTitle) {
         return songRepository.findByYoutubeVideoId(youtubeVideoId)
-                .orElseGet(() -> songRepository.save(new Song(youtubeVideoId, title, thumbnailUrl, duration)));
+                .orElseGet(() -> songRepository.save(
+                        new Song(youtubeVideoId, title, thumbnailUrl, duration, channelTitle)));
     }
 }

@@ -30,6 +30,9 @@ public class Song {
     @Column(nullable = false)
     private String title;
 
+    @Column(name = "channel_title")
+    private String channelTitle;
+
     @Column(name = "thumbnail_url")
     private String thumbnailUrl;
 
@@ -37,6 +40,10 @@ public class Song {
     private Duration duration;
 
     public Song(String youtubeVideoId, String title, String thumbnailUrl, Duration duration) {
+        this(youtubeVideoId, title, thumbnailUrl, duration, null);
+    }
+
+    public Song(String youtubeVideoId, String title, String thumbnailUrl, Duration duration, String channelTitle) {
         this.youtubeVideoId = Objects.requireNonNull(youtubeVideoId, "youtubeVideoId não pode ser nulo");
         this.title = Objects.requireNonNull(title, "title não pode ser nulo");
         this.thumbnailUrl = thumbnailUrl;
@@ -44,6 +51,7 @@ public class Song {
         if (duration.isNegative()) {
             throw new IllegalArgumentException("duration não pode ser negativa");
         }
+        this.channelTitle = channelTitle;
     }
 
     protected Song() {
@@ -59,6 +67,10 @@ public class Song {
 
     public String getTitle() {
         return title;
+    }
+
+    public String getChannelTitle() {
+        return channelTitle;
     }
 
     public String getThumbnailUrl() {

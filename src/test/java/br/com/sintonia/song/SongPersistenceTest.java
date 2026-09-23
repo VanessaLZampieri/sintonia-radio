@@ -37,6 +37,19 @@ class SongPersistenceTest {
     }
 
     @Test
+    void persistsChannelTitle() {
+        Song song = new Song("everlong", "Everlong", null, Duration.ofSeconds(250), "Foo Fighters");
+
+        entityManager.persist(song);
+        entityManager.flush();
+        entityManager.clear();
+
+        Song found = entityManager.find(Song.class, song.getId());
+
+        assertThat(found.getChannelTitle()).isEqualTo("Foo Fighters");
+    }
+
+    @Test
     void rejectsDuplicateYoutubeVideoId() {
         Song first = new Song("dQw4w9WgXcQ", "Title A", null, Duration.ofSeconds(10));
         entityManager.persist(first);

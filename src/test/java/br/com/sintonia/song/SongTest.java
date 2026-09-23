@@ -28,6 +28,20 @@ class SongTest {
     }
 
     @Test
+    void allowsNullChannelTitle() {
+        Song song = new Song("dQw4w9WgXcQ", "Never Gonna Give You Up", null, Duration.ofSeconds(212));
+
+        assertThat(song.getChannelTitle()).isNull();
+    }
+
+    @Test
+    void storesChannelTitle() {
+        Song song = new Song("dQw4w9WgXcQ", "Everlong", null, Duration.ofSeconds(250), "Foo Fighters");
+
+        assertThat(song.getChannelTitle()).isEqualTo("Foo Fighters");
+    }
+
+    @Test
     void preservesPositiveDuration() {
         Duration duration = Duration.ofMinutes(3).plusSeconds(42);
 

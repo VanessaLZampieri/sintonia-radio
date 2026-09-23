@@ -105,25 +105,25 @@ class YouTubeSongServiceTest {
 
         assertThat(result).contains(existing);
         verify(youTubeClient, never()).getVideoDetails(any());
-        verify(songService, never()).findOrCreate(any(), any(), any(), any());
+        verify(songService, never()).findOrCreate(any(), any(), any(), any(), any());
     }
 
     @Test
     void selectFetchesDetailsAndCreatesNewSong() {
         YouTubeVideoDetails details = new YouTubeVideoDetails(
                 "abc123", "New Title", "Channel", "https://img/1.jpg", Duration.ofSeconds(100), true, false);
-        Song created = new Song("abc123", "New Title", "https://img/1.jpg", Duration.ofSeconds(100));
+        Song created = new Song("abc123", "New Title", "https://img/1.jpg", Duration.ofSeconds(100), "Channel");
 
         when(songService.findByYoutubeVideoId("abc123")).thenReturn(Optional.empty());
         when(youTubeClient.getVideoDetails("abc123")).thenReturn(Optional.of(details));
-        when(songService.findOrCreate("abc123", "New Title", "https://img/1.jpg", Duration.ofSeconds(100)))
+        when(songService.findOrCreate("abc123", "New Title", "https://img/1.jpg", Duration.ofSeconds(100), "Channel"))
                 .thenReturn(created);
 
         Optional<Song> result = youTubeSongService.select("abc123");
 
         assertThat(result).contains(created);
         verify(youTubeClient).getVideoDetails("abc123");
-        verify(songService).findOrCreate("abc123", "New Title", "https://img/1.jpg", Duration.ofSeconds(100));
+        verify(songService).findOrCreate("abc123", "New Title", "https://img/1.jpg", Duration.ofSeconds(100), "Channel");
     }
 
     @Test
@@ -134,7 +134,7 @@ class YouTubeSongServiceTest {
         Optional<Song> result = youTubeSongService.select("missing");
 
         assertThat(result).isEmpty();
-        verify(songService, never()).findOrCreate(any(), any(), any(), any());
+        verify(songService, never()).findOrCreate(any(), any(), any(), any(), any());
     }
 
     private YouTubeSearchResponse response(YouTubeSearchItem... items) {

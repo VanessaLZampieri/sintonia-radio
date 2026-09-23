@@ -14,6 +14,8 @@ public interface PlaybackRepository extends JpaRepository<Playback, Long> {
 
     Optional<Playback> findByQueueItemRoomIdAndStatus(Long roomId, PlaybackStatus status);
 
+    Optional<Playback> findFirstByQueueItemRoomIdAndStatusOrderByStartedAtDesc(Long roomId, PlaybackStatus status);
+
     List<Playback> findByQueueItemId(Long queueItemId);
 
     List<Playback> findByQueueItemRoomIdAndStatusInOrderByStartedAtDesc(Long roomId, List<PlaybackStatus> statuses, Pageable pageable);

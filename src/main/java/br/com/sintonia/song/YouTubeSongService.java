@@ -26,6 +26,16 @@ public class YouTubeSongService {
     }
 
     public List<SongSearchItemResponse> search(String query, int maxResults) {
+        return searchDetails(query, maxResults).stream()
+                .map(details -> new SongSearchItemResponse(
+                        details.videoId(),
+                        details.title(),
+                        details.channelTitle(),
+                        details.duration() == null ? null : details.duration().toString()))
+                .toList();
+    }
+
+    public List<YouTubeVideoDetails> searchDetails(String query, int maxResults) {
         YouTubeSearchResponse response = youTubeClient.search(query, maxResults);
         if (response == null || response.items() == null) {
             return List.of();
@@ -40,7 +50,7 @@ public class YouTubeSongService {
         Map<String, YouTubeVideoDetails> details = youTubeClient.getVideoDetailsBatch(videoIds);
 
         Set<String> seen = new HashSet<>();
-        List<SongSearchItemResponse> results = new ArrayList<>();
+        List<YouTubeVideoDetails> results = new ArrayList<>();
         for (YouTubeSearchItem item : response.items()) {
             String videoId = item.id() == null ? null : item.id().videoId();
             if (videoId == null || !seen.add(videoId)) {
@@ -50,7 +60,7 @@ public class YouTubeSongService {
             if (videoDetails == null || !videoDetails.embeddable() || videoDetails.live()) {
                 continue;
             }
-            results.add(SongSearchItemResponse.from(item, videoDetails));
+            results.add(videoDetails);
         }
         return results;
     }
@@ -65,6 +75,7 @@ public class YouTubeSongService {
                         details.videoId(),
                         details.title(),
                         details.thumbnailUrl(),
-                        details.duration()));
+                        details.duration(),
+                        details.channelTitle()));
     }
 }

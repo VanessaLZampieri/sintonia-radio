@@ -29,7 +29,7 @@ class SongServiceTest {
         Song existing = new Song("abc123", "Existing Title", null, Duration.ofSeconds(100));
         when(songRepository.findByYoutubeVideoId("abc123")).thenReturn(Optional.of(existing));
 
-        Song result = songService.findOrCreate("abc123", "Existing Title", null, Duration.ofSeconds(100));
+        Song result = songService.findOrCreate("abc123", "Existing Title", null, Duration.ofSeconds(100), "Channel");
 
         assertThat(result).isSameAs(existing);
         verify(songRepository, never()).save(any());
@@ -40,12 +40,14 @@ class SongServiceTest {
         when(songRepository.findByYoutubeVideoId("abc123")).thenReturn(Optional.empty());
         when(songRepository.save(any(Song.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Song result = songService.findOrCreate("abc123", "New Title", "https://img/1.jpg", Duration.ofSeconds(100));
+        Song result = songService.findOrCreate(
+                "abc123", "New Title", "https://img/1.jpg", Duration.ofSeconds(100), "Channel");
 
         assertThat(result.getYoutubeVideoId()).isEqualTo("abc123");
         assertThat(result.getTitle()).isEqualTo("New Title");
         assertThat(result.getThumbnailUrl()).isEqualTo("https://img/1.jpg");
         assertThat(result.getDuration()).isEqualTo(Duration.ofSeconds(100));
+        assertThat(result.getChannelTitle()).isEqualTo("Channel");
         verify(songRepository).save(any(Song.class));
     }
 }
