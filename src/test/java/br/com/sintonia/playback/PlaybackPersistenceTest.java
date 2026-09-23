@@ -27,7 +27,7 @@ class PlaybackPersistenceTest {
 
     @Test
     void persistsAndRecoversPlayback() {
-        Room room = new Room("PTEST123", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "PTEST123", RoomStatus.ACTIVE);
         Song song = new Song("pb-song-1", "Title", null, Duration.ofSeconds(100));
         User user = newUser("pb-g1", "Playback User", "pb@example.com");
         entityManager.persist(room);
@@ -60,6 +60,7 @@ class PlaybackPersistenceTest {
             User user = constructor.newInstance();
             ReflectionTestUtils.setField(user, "googleId", googleId);
             ReflectionTestUtils.setField(user, "name", name);
+            ReflectionTestUtils.setField(user, "displayName", "Test");
             ReflectionTestUtils.setField(user, "email", email);
             return user;
         } catch (ReflectiveOperationException e) {

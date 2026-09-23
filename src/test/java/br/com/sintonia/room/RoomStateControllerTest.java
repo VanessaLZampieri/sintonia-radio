@@ -50,7 +50,7 @@ class RoomStateControllerTest {
     @Test
     void getsRoomState() throws Exception {
         RoomStateResponse response = new RoomStateResponse(
-                ROOM_ID, "ABCDEFGH", RoomStatus.ACTIVE, PlaybackMode.TODOS_OS_NAVEGADORES,
+                ROOM_ID, "ABCDEFGH", "Sala Teste", RoomStatus.ACTIVE, PlaybackMode.TODOS_OS_NAVEGADORES,
                 null, null, List.of(), null);
         when(roomStateService.get(ROOM_ID, USER_ID)).thenReturn(response);
 
@@ -58,6 +58,7 @@ class RoomStateControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roomId").value(1))
                 .andExpect(jsonPath("$.roomCode").value("ABCDEFGH"))
+                .andExpect(jsonPath("$.name").value("Sala Teste"))
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.playbackMode").value("TODOS_OS_NAVEGADORES"))
                 .andExpect(jsonPath("$.queue").isEmpty());

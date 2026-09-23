@@ -22,6 +22,7 @@ export function RoomPage() {
   const [entered, setEntered] = useState(false)
   const [localPaused, setLocalPaused] = useState(false)
   const [syncRequest, setSyncRequest] = useState<{ seconds: number; nonce: number } | null>(null)
+  const [roomName, setRoomName] = useState('')
 
   const mySessionId = useMemo(() => getOrCreateClientSessionId(), [])
   const socketRef = useRef<Client | null>(null)
@@ -95,6 +96,12 @@ export function RoomPage() {
     setLocalPaused(false)
     setSyncRequest(null)
   }, [state?.playbackMode])
+
+  useEffect(() => {
+    if (state?.name) {
+      setRoomName(state.name)
+    }
+  }, [state?.name])
 
   const search = async () => {
     const trimmed = query.trim()
@@ -177,6 +184,19 @@ export function RoomPage() {
       refresh()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível alterar o modo.')
+    }
+  }
+
+  const renameRoom = async () => {
+    if (!roomId) {
+      return
+    }
+    setError(null)
+    try {
+      await api.renameRoom(roomId, roomName)
+      refresh()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível renomear a sala.')
     }
   }
 
@@ -308,7 +328,7 @@ export function RoomPage() {
           ← Início
         </button>
         <h2 style={{ margin: 0 }} className="grow">
-          Sala <span style={{ letterSpacing: 2 }}>{codeRef.current}</span>
+          {state?.name ?? `Sala ${codeRef.current}`}
         </h2>
         <button className="btn btn-sm" onClick={copyCode}>
           {copied ? 'Copiado' : 'Copiar código'}
@@ -324,6 +344,27 @@ export function RoomPage() {
 
       {entered && state && (
         <>
+          <section className="card stack">
+            <h3 style={{ margin: 0 }}>Nome da sala</h3>
+            <div className="row">
+              <input
+                className="input grow"
+                placeholder="Nome da sala"
+                value={roomName}
+                maxLength={40}
+                onChange={(event) => setRoomName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void renameRoom()
+                  }
+                }}
+              />
+              <button className="btn" onClick={renameRoom}>
+                Renomear
+              </button>
+            </div>
+          </section>
+
           <div className="grid-2">
             <section className="card stack">
               <h3 style={{ margin: 0 }}>Reprodução</h3>

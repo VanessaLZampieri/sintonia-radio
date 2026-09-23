@@ -67,7 +67,7 @@ class AutoDjServiceTest {
 
     @BeforeEach
     void setUp() {
-        room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         ReflectionTestUtils.setField(room, "id", ROOM_ID);
         song1 = new Song("song-1", "Song 1", null, Duration.ofSeconds(100));
         song2 = new Song("song-2", "Song 2", null, Duration.ofSeconds(100));

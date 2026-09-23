@@ -29,7 +29,7 @@ class SkipVotePersistenceTest {
 
     @Test
     void persistsAndRecoversSkipVote() {
-        Room room = new Room("STEST123", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "STEST123", RoomStatus.ACTIVE);
         Song song = new Song("sv-song-1", "Title", null, Duration.ofSeconds(100));
         User user = newUser("sv-g1", "Skip Vote User", "sv@example.com");
         entityManager.persist(room);
@@ -60,7 +60,7 @@ class SkipVotePersistenceTest {
 
     @Test
     void rejectsDuplicateVoteForSamePlaybackAndUser() {
-        Room room = new Room("STEST124", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "STEST124", RoomStatus.ACTIVE);
         Song song = new Song("sv-song-2", "Title", null, Duration.ofSeconds(100));
         User user = newUser("sv-g2", "Skip Vote User 2", "sv2@example.com");
         entityManager.persist(room);
@@ -99,6 +99,7 @@ class SkipVotePersistenceTest {
             User user = constructor.newInstance();
             ReflectionTestUtils.setField(user, "googleId", googleId);
             ReflectionTestUtils.setField(user, "name", name);
+            ReflectionTestUtils.setField(user, "displayName", "Test");
             ReflectionTestUtils.setField(user, "email", email);
             return user;
         } catch (ReflectiveOperationException e) {

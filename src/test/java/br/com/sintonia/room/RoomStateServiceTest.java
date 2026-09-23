@@ -58,7 +58,7 @@ class RoomStateServiceTest {
 
     @BeforeEach
     void setUp() {
-        room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         ReflectionTestUtils.setField(room, "id", ROOM_ID);
         user = newUser(USER_ID);
         song = new Song("abc123", "Title", "https://img.jpg", Duration.ofSeconds(213));
@@ -74,6 +74,7 @@ class RoomStateServiceTest {
 
         assertThat(result.roomId()).isEqualTo(ROOM_ID);
         assertThat(result.roomCode()).isEqualTo("ABCDEFGH");
+        assertThat(result.name()).isEqualTo("Sala Teste");
         assertThat(result.status()).isEqualTo(RoomStatus.ACTIVE);
         assertThat(result.playbackMode()).isEqualTo(PlaybackMode.TODOS_OS_NAVEGADORES);
         assertThat(result.player()).isNull();
@@ -237,7 +238,7 @@ class RoomStateServiceTest {
 
     @Test
     void snapshotRejectsClosedRoom() {
-        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room closedRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
         assertThatThrownBy(() -> roomStateService.get(ROOM_ID, USER_ID))

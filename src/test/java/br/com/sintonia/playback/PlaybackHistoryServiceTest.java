@@ -49,7 +49,7 @@ class PlaybackHistoryServiceTest {
 
     @BeforeEach
     void setUp() {
-        room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         ReflectionTestUtils.setField(room, "id", ROOM_ID);
         user = newUser(100L);
         song = new Song("abc123", "Title", "https://img.jpg", Duration.ofSeconds(213));
@@ -97,7 +97,7 @@ class PlaybackHistoryServiceTest {
 
     @Test
     void historyRejectsClosedRoom() {
-        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room closedRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
         assertThatThrownBy(() -> playbackHistoryService.history(ROOM_ID, 20))

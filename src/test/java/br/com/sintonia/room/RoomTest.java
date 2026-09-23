@@ -4,13 +4,14 @@ import br.com.sintonia.user.User;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 class RoomTest {
 
     @Test
     void newRoomHasNoLifecycleMarks() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
 
         assertThat(room.getEmptySince()).isNull();
         assertThat(room.getClosedAt()).isNull();
@@ -19,7 +20,7 @@ class RoomTest {
 
     @Test
     void markEmptySetsEmptySinceAndKeepsActive() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
 
         room.markEmpty();
 
@@ -30,7 +31,7 @@ class RoomTest {
 
     @Test
     void markOccupiedClearsEmptySince() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         room.markEmpty();
 
         room.markOccupied();
@@ -41,7 +42,7 @@ class RoomTest {
 
     @Test
     void closeMarksClosedAndClearsEmptySince() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         room.markEmpty();
 
         room.close();
@@ -53,14 +54,14 @@ class RoomTest {
 
     @Test
     void newRoomDefaultsToTodosOsNavegadores() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
 
         assertThat(room.getPlaybackMode()).isEqualTo(PlaybackMode.TODOS_OS_NAVEGADORES);
     }
 
     @Test
     void changePlaybackModeUpdatesMode() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
 
         room.changePlaybackMode(PlaybackMode.CAIXA_DE_MUSICA);
 
@@ -69,7 +70,7 @@ class RoomTest {
 
     @Test
     void newRoomHasNoPlayer() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
 
         assertThat(room.getPlayerClientSessionId()).isNull();
         assertThat(room.getPlayerUser()).isNull();
@@ -78,7 +79,7 @@ class RoomTest {
 
     @Test
     void claimSetsPlayerFields() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         User user = mock(User.class);
 
         room.claim("session-1", user);
@@ -90,7 +91,7 @@ class RoomTest {
 
     @Test
     void releaseClearsPlayerFields() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         room.claim("session-1", mock(User.class));
 
         room.release();
@@ -98,5 +99,27 @@ class RoomTest {
         assertThat(room.getPlayerClientSessionId()).isNull();
         assertThat(room.getPlayerUser()).isNull();
         assertThat(room.getPlayerAssumedAt()).isNull();
+    }
+
+    @Test
+    void newRoomStoresName() {
+        Room room = new Room("Faxina com sofrimento", "ABCDEFGH", RoomStatus.ACTIVE);
+
+        assertThat(room.getName()).isEqualTo("Faxina com sofrimento");
+    }
+
+    @Test
+    void rejectsNullName() {
+        assertThatThrownBy(() -> new Room(null, "ABCDEFGH", RoomStatus.ACTIVE))
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void renameTrimsName() {
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+
+        room.rename("  Nova Sala  ");
+
+        assertThat(room.getName()).isEqualTo("Nova Sala");
     }
 }

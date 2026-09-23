@@ -87,7 +87,7 @@ class PlaybackServiceTest {
 
     @BeforeEach
     void setUp() {
-        room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         ReflectionTestUtils.setField(room, "id", ROOM_ID);
         song = new Song("abc123", "Title", null, Duration.ofSeconds(100));
         user = mock(User.class);
@@ -153,7 +153,7 @@ class PlaybackServiceTest {
 
     @Test
     void doesNotStartWhenRoomIsClosed() {
-        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room closedRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
         assertThatThrownBy(() -> playbackService.start(ROOM_ID, QUEUE_ITEM_ID))
@@ -664,7 +664,7 @@ class PlaybackServiceTest {
 
     @Test
     void ensurePlaybackThrowsWhenRoomIsClosed() {
-        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room closedRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
         assertThatThrownBy(() -> playbackService.ensurePlayback(ROOM_ID))

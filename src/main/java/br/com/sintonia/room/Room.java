@@ -35,6 +35,9 @@ public class Room {
     @Column(name = "code", nullable = false, length = 8)
     private String code;
 
+    @Column(name = "name")
+    private String name;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private RoomStatus status;
@@ -64,7 +67,8 @@ public class Room {
     @Column(name = "player_assumed_at")
     private Instant playerAssumedAt;
 
-    public Room(String code, RoomStatus status) {
+    public Room(String name, String code, RoomStatus status) {
+        this.name = Objects.requireNonNull(name, "name não pode ser nulo");
         this.code = code;
         this.status = status;
         this.playbackMode = PlaybackMode.TODOS_OS_NAVEGADORES;
@@ -79,6 +83,10 @@ public class Room {
 
     public String getCode() {
         return code;
+    }
+
+    public String getName() {
+        return name;
     }
 
     public RoomStatus getStatus() {
@@ -129,6 +137,10 @@ public class Room {
 
     public void changePlaybackMode(PlaybackMode playbackMode) {
         this.playbackMode = Objects.requireNonNull(playbackMode, "playbackMode não pode ser nulo");
+    }
+
+    public void rename(String name) {
+        this.name = Objects.requireNonNull(name, "name não pode ser nulo").trim();
     }
 
     public void claim(String clientSessionId, User user) {

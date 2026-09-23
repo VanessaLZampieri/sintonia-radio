@@ -57,7 +57,7 @@ class RoomPlayerServiceTest {
 
     @BeforeEach
     void setUp() {
-        room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         room.changePlaybackMode(PlaybackMode.CAIXA_DE_MUSICA);
         ReflectionTestUtils.setField(room, "id", ROOM_ID);
         user = newUser(USER_ID);
@@ -126,7 +126,7 @@ class RoomPlayerServiceTest {
 
     @Test
     void claimRejectsClosedRoom() {
-        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room closedRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
         assertThatThrownBy(() -> roomPlayerService.claim(ROOM_ID, SESSION_ID, USER_ID))
@@ -145,7 +145,7 @@ class RoomPlayerServiceTest {
 
     @Test
     void claimRejectedInTodosOsNavegadoresMode() {
-        Room todosRoom = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room todosRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(todosRoom));
 
         assertThatThrownBy(() -> roomPlayerService.claim(ROOM_ID, SESSION_ID, USER_ID))

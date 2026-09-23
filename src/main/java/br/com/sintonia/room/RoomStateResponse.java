@@ -9,6 +9,7 @@ import java.util.List;
 public record RoomStateResponse(
         Long roomId,
         String roomCode,
+        String name,
         RoomStatus status,
         PlaybackMode playbackMode,
         PlayerState player,

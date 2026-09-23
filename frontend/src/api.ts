@@ -70,7 +70,17 @@ function jsonBody(value: unknown): string {
 export const api = {
   me: () => request<Me>('/api/me'),
 
-  createRoom: () => request<Room>('/rooms', { method: 'POST' }),
+  updateDisplayName: (displayName: string) =>
+    request<Me>('/api/me', {
+      method: 'PATCH',
+      body: jsonBody({ displayName }),
+    }),
+
+  createRoom: (name: string) =>
+    request<Room>('/rooms', { method: 'POST', body: jsonBody({ name }) }),
+
+  renameRoom: (roomId: number, name: string) =>
+    request<Room>(`/api/rooms/${roomId}`, { method: 'PATCH', body: jsonBody({ name }) }),
 
   enterRoom: (code: string) =>
     request<RoomMember>(`/rooms/${encodeURIComponent(code)}/members`, { method: 'POST' }),

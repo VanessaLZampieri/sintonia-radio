@@ -28,7 +28,7 @@ class QueueItemPersistenceTest {
 
     @Test
     void persistsAndRecoversQueueItem() {
-        Room room = new Room("QTEST123", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "QTEST123", RoomStatus.ACTIVE);
         Song song = new Song("qitem-song-1", "Title", null, Duration.ofSeconds(100));
         User user = newUser("qitem-g1", "Queue Item User", "qitem@example.com");
 
@@ -55,7 +55,7 @@ class QueueItemPersistenceTest {
 
     @Test
     void allowsSinglePlayingPerRoom() {
-        Room room = new Room("QTEST200", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "QTEST200", RoomStatus.ACTIVE);
         Song song = new Song("qitem-song-200", "Title", null, Duration.ofSeconds(100));
         User user = newUser("qitem-g200", "User", "user200@example.com");
         entityManager.persist(room);
@@ -72,7 +72,7 @@ class QueueItemPersistenceTest {
 
     @Test
     void rejectsSecondPlayingInSameRoom() {
-        Room room = new Room("QTEST201", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "QTEST201", RoomStatus.ACTIVE);
         Song song1 = new Song("qitem-song-201a", "Title", null, Duration.ofSeconds(100));
         Song song2 = new Song("qitem-song-201b", "Title", null, Duration.ofSeconds(100));
         User user = newUser("qitem-g201", "User", "user201@example.com");
@@ -102,8 +102,8 @@ class QueueItemPersistenceTest {
 
     @Test
     void allowsPlayingInDifferentRooms() {
-        Room roomA = new Room("QTEST202", RoomStatus.ACTIVE);
-        Room roomB = new Room("QTEST203", RoomStatus.ACTIVE);
+        Room roomA = new Room("Sala Teste", "QTEST202", RoomStatus.ACTIVE);
+        Room roomB = new Room("Sala Teste", "QTEST203", RoomStatus.ACTIVE);
         Song songA = new Song("qitem-song-202a", "Title", null, Duration.ofSeconds(100));
         Song songB = new Song("qitem-song-202b", "Title", null, Duration.ofSeconds(100));
         User user = newUser("qitem-g202", "User", "user202@example.com");
@@ -127,7 +127,7 @@ class QueueItemPersistenceTest {
 
     @Test
     void allowsMultipleWaitingInSameRoom() {
-        Room room = new Room("QTEST204", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "QTEST204", RoomStatus.ACTIVE);
         Song song1 = new Song("qitem-song-204a", "Title", null, Duration.ofSeconds(100));
         Song song2 = new Song("qitem-song-204b", "Title", null, Duration.ofSeconds(100));
         Song song3 = new Song("qitem-song-204c", "Title", null, Duration.ofSeconds(100));
@@ -158,6 +158,7 @@ class QueueItemPersistenceTest {
             User user = constructor.newInstance();
             ReflectionTestUtils.setField(user, "googleId", googleId);
             ReflectionTestUtils.setField(user, "name", name);
+            ReflectionTestUtils.setField(user, "displayName", "Test");
             ReflectionTestUtils.setField(user, "email", email);
             return user;
         } catch (ReflectiveOperationException e) {

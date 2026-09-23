@@ -2,6 +2,7 @@ package br.com.sintonia.exception;
 
 import br.com.sintonia.room.ClaimNotAllowedException;
 import br.com.sintonia.room.InvalidClientSessionIdException;
+import br.com.sintonia.room.InvalidRoomNameException;
 import br.com.sintonia.room.NotThePlayerException;
 import br.com.sintonia.room.PlayerAlreadyClaimedException;
 import br.com.sintonia.room.RoomClosedException;
@@ -18,6 +19,7 @@ import br.com.sintonia.queue.SongAlreadyInQueueException;
 import br.com.sintonia.queue.QueueItemNotFoundException;
 import br.com.sintonia.queue.QueueLimitExceededException;
 import br.com.sintonia.song.SongNotFoundException;
+import br.com.sintonia.user.InvalidDisplayNameException;
 import br.com.sintonia.user.UserNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,9 +38,21 @@ public class GlobalExceptionHandler {
                 .body(Map.of("message", exception.getMessage()));
     }
 
+    @ExceptionHandler(InvalidRoomNameException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidRoomName(InvalidRoomNameException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleUserNotFound(UserNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidDisplayNameException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidDisplayName(InvalidDisplayNameException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("message", exception.getMessage()));
     }
 

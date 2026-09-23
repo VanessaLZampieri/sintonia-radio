@@ -2,6 +2,7 @@ package br.com.sintonia.room;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,7 +19,7 @@ public class RoomController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public RoomResponse createRoom() {
-        return RoomResponse.from(roomService.createRoom());
+    public RoomResponse createRoom(@RequestBody CreateRoomRequest request) {
+        return RoomResponse.from(roomService.createRoom(request.name()));
     }
 }

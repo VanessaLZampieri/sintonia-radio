@@ -71,7 +71,7 @@ class SkipVoteServiceTest {
 
     @BeforeEach
     void setUp() {
-        room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         ReflectionTestUtils.setField(room, "id", ROOM_ID);
         playback = mock(Playback.class);
         user = mock(User.class);
@@ -186,7 +186,7 @@ class SkipVoteServiceTest {
 
     @Test
     void voteRejectsClosedRoom() {
-        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room closedRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
         assertThatThrownBy(() -> skipVoteService.vote(ROOM_ID, USER_ID))

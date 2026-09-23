@@ -69,6 +69,7 @@ class SintoniaOAuth2UserServiceTest {
         assertThat(result).isInstanceOf(SintoniaOAuth2User.class);
         assertThat(((SintoniaOAuth2User) result).getUserId()).isEqualTo(10L);
         assertThat(existing.getName()).isEqualTo("João Atualizado");
+        assertThat(existing.getDisplayName()).isEqualTo("João");
         assertThat(existing.getEmail()).isEqualTo("novo@example.com");
         assertThat(existing.getAvatarUrl()).isEqualTo("https://img/novo.jpg");
     }

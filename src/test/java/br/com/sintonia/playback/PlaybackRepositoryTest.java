@@ -111,7 +111,7 @@ class PlaybackRepositoryTest {
     }
 
     private Room persistRoom(String code) {
-        Room room = new Room(code, RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", code, RoomStatus.ACTIVE);
         entityManager.persist(room);
         return room;
     }
@@ -151,6 +151,7 @@ class PlaybackRepositoryTest {
             User user = constructor.newInstance();
             ReflectionTestUtils.setField(user, "googleId", googleId);
             ReflectionTestUtils.setField(user, "name", "Test User");
+            ReflectionTestUtils.setField(user, "displayName", "Test");
             ReflectionTestUtils.setField(user, "email", email);
             return user;
         } catch (ReflectiveOperationException e) {

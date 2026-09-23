@@ -14,8 +14,16 @@ class UserTest {
 
         assertThat(user.getGoogleId()).isEqualTo("google-123");
         assertThat(user.getName()).isEqualTo("João");
+        assertThat(user.getDisplayName()).isEqualTo("João");
         assertThat(user.getEmail()).isEqualTo("joao@example.com");
         assertThat(user.getAvatarUrl()).isEqualTo("https://img/joao.jpg");
+    }
+
+    @Test
+    void derivesDisplayNameFromFirstName() {
+        User user = new User("google-123", "João Silva", "joao@example.com", null);
+
+        assertThat(user.getDisplayName()).isEqualTo("João");
     }
 
     @Test
@@ -51,6 +59,31 @@ class UserTest {
         assertThat(user.getName()).isEqualTo("João Atualizado");
         assertThat(user.getEmail()).isEqualTo("novo@example.com");
         assertThat(user.getAvatarUrl()).isEqualTo("https://img/novo.jpg");
+    }
+
+    @Test
+    void updateProfileDoesNotChangeDisplayName() {
+        User user = new User("google-123", "João Silva", "joao@example.com", null);
+        user.updateProfile("João Atualizado", "novo@example.com", null);
+
+        assertThat(user.getDisplayName()).isEqualTo("João");
+    }
+
+    @Test
+    void updatesDisplayNameTrimming() {
+        User user = new User("google-123", "João Silva", "joao@example.com", null);
+
+        user.updateDisplayName("  Ana  ");
+
+        assertThat(user.getDisplayName()).isEqualTo("Ana");
+    }
+
+    @Test
+    void updateDisplayNameRejectsNull() {
+        User user = new User("google-123", "João Silva", "joao@example.com", null);
+
+        assertThatThrownBy(() -> user.updateDisplayName(null))
+                .isInstanceOf(NullPointerException.class);
     }
 
     @Test

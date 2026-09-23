@@ -32,7 +32,7 @@ class RoomMemberServiceTest {
 
     @Test
     void lastMemberLeavingMarksRoomAsEmpty() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         User user = mock(User.class);
         when(user.getId()).thenReturn(1L);
         RoomMember member = new RoomMember(room, user);
@@ -51,7 +51,7 @@ class RoomMemberServiceTest {
 
     @Test
     void leavingWithOtherMembersDoesNotMarkRoomAsEmpty() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         User user = mock(User.class);
         when(user.getId()).thenReturn(1L);
         RoomMember member = new RoomMember(room, user);
@@ -69,7 +69,7 @@ class RoomMemberServiceTest {
 
     @Test
     void enteringEmptyRoomClearsEmptySince() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         room.markEmpty();
         User user = mock(User.class);
         when(user.getId()).thenReturn(2L);
@@ -88,7 +88,7 @@ class RoomMemberServiceTest {
 
     @Test
     void leavingClosedRoomDoesNotMarkEmpty() {
-        Room room = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         User user = mock(User.class);
         when(user.getId()).thenReturn(1L);
         RoomMember member = new RoomMember(room, user);

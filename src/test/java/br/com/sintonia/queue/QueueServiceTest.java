@@ -75,7 +75,7 @@ class QueueServiceTest {
 
     @BeforeEach
     void setUp() {
-        room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         song = new Song("abc123", "Title", null, Duration.ofSeconds(100));
         user = mock(User.class);
     }
@@ -140,7 +140,7 @@ class QueueServiceTest {
 
     @Test
     void rejectsWhenRoomIsClosed() {
-        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room closedRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
         assertThatThrownBy(() -> queueService.add(ROOM_ID, SONG_ID, USER_ID))
@@ -259,7 +259,7 @@ class QueueServiceTest {
 
     @Test
     void findQueueThrowsWhenRoomIsClosed() {
-        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room closedRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
         assertThatThrownBy(() -> queueService.findQueue(ROOM_ID))
@@ -270,7 +270,7 @@ class QueueServiceTest {
 
     @Test
     void findQueueReturnsItemsWhenRoomIsActive() {
-        Room activeRoom = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room activeRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(activeRoom));
         List<QueueItem> items = List.of(new QueueItem(activeRoom, song, user, java.time.Instant.now(), 1));
         when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(items);
@@ -283,7 +283,7 @@ class QueueServiceTest {
 
     @Test
     void findQueueReturnsEmptyListWhenRoomIsActiveWithNoItems() {
-        Room activeRoom = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room activeRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(activeRoom));
         when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of());
 
@@ -306,7 +306,7 @@ class QueueServiceTest {
 
     @Test
     void removeThrowsWhenRoomIsClosed() {
-        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room closedRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
         assertThatThrownBy(() -> queueService.remove(ROOM_ID, 10L, USER_ID))
@@ -397,7 +397,7 @@ class QueueServiceTest {
 
     @Test
     void findByIdThrowsWhenRoomIsClosed() {
-        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room closedRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
         assertThatThrownBy(() -> queueService.findById(ROOM_ID, 10L))
@@ -465,7 +465,7 @@ class QueueServiceTest {
 
     @Test
     void findPlayingThrowsWhenRoomIsClosed() {
-        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room closedRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
         assertThatThrownBy(() -> queueService.findPlaying(ROOM_ID))
@@ -512,7 +512,7 @@ class QueueServiceTest {
 
     @Test
     void findNextWaitingThrowsWhenRoomIsClosed() {
-        Room closedRoom = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room closedRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(closedRoom));
 
         assertThatThrownBy(() -> queueService.findNextWaiting(ROOM_ID))

@@ -31,7 +31,7 @@ class RoomLifecycleServiceTest {
 
     @Test
     void closesRoomEmptyForMoreThanTwentyMinutes() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         setEmptySince(room, Instant.now().minus(25, ChronoUnit.MINUTES));
 
         when(roomRepository.findExpiredCandidateIds(eq(RoomStatus.ACTIVE), any(Instant.class)))
@@ -48,7 +48,7 @@ class RoomLifecycleServiceTest {
 
     @Test
     void doesNotCloseRoomWithActiveParticipants() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         setEmptySince(room, Instant.now().minus(25, ChronoUnit.MINUTES));
 
         when(roomRepository.findExpiredCandidateIds(eq(RoomStatus.ACTIVE), any(Instant.class)))
@@ -64,7 +64,7 @@ class RoomLifecycleServiceTest {
 
     @Test
     void doesNotCloseRoomThatIsAlreadyClosed() {
-        Room room = new Room("ABCDEFGH", RoomStatus.CLOSED);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
         setEmptySince(room, Instant.now().minus(25, ChronoUnit.MINUTES));
 
         when(roomRepository.findExpiredCandidateIds(eq(RoomStatus.ACTIVE), any(Instant.class)))
@@ -78,7 +78,7 @@ class RoomLifecycleServiceTest {
 
     @Test
     void doesNotCloseRoomThatBecameEmptyLessThanTwentyMinutesAgo() {
-        Room room = new Room("ABCDEFGH", RoomStatus.ACTIVE);
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         setEmptySince(room, Instant.now().minus(10, ChronoUnit.MINUTES));
 
         when(roomRepository.findExpiredCandidateIds(eq(RoomStatus.ACTIVE), any(Instant.class)))

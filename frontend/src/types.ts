@@ -19,6 +19,7 @@ export type RoomEventType =
 export interface Me {
   id: number
   name: string
+  displayName: string
   email: string
   avatarUrl: string | null
 }
@@ -26,6 +27,7 @@ export interface Me {
 export interface Room {
   id: number
   code: string
+  name: string
   status: RoomStatus
   createdAt: string
 }
@@ -105,6 +107,7 @@ export interface SongState {
 export interface RoomState {
   roomId: number
   roomCode: string
+  name: string
   status: RoomStatus
   playbackMode: PlaybackMode
   player: { clientSessionId: string | null; userId: number | null; assumedAt: string | null } | null

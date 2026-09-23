@@ -32,6 +32,9 @@ public class User {
     @Column(nullable = false)
     private String name;
 
+    @Column(name = "display_name")
+    private String displayName;
+
     @Column(nullable = false, unique = true)
     private String email;
 
@@ -50,12 +53,23 @@ public class User {
         this.name = Objects.requireNonNull(name, "name não pode ser nulo");
         this.email = Objects.requireNonNull(email, "email não pode ser nulo");
         this.avatarUrl = avatarUrl;
+        this.displayName = firstWordOf(this.name);
     }
 
     public void updateProfile(String name, String email, String avatarUrl) {
         this.name = Objects.requireNonNull(name, "name não pode ser nulo");
         this.email = Objects.requireNonNull(email, "email não pode ser nulo");
         this.avatarUrl = avatarUrl;
+    }
+
+    public void updateDisplayName(String displayName) {
+        this.displayName = Objects.requireNonNull(displayName, "displayName não pode ser nulo").trim();
+    }
+
+    private static String firstWordOf(String name) {
+        String trimmed = name.trim();
+        int space = trimmed.indexOf(' ');
+        return space == -1 ? trimmed : trimmed.substring(0, space);
     }
 
     public Long getId() {
@@ -68,6 +82,10 @@ public class User {
 
     public String getName() {
         return name;
+    }
+
+    public String getDisplayName() {
+        return displayName;
     }
 
     public String getEmail() {

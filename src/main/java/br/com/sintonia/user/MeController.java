@@ -4,6 +4,8 @@ import br.com.sintonia.security.SintoniaOAuth2User;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -12,20 +14,27 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api")
 public class MeController {
 
-    private final UserRepository userRepository;
+    private final UserService userService;
 
-    public MeController(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    public MeController(UserService userService) {
+        this.userService = userService;
     }
 
     @GetMapping("/me")
     public MeResponse me(@AuthenticationPrincipal SintoniaOAuth2User principal) {
+        return userService.getMe(requireUserId(principal));
+    }
+
+    @PatchMapping("/me")
+    public MeResponse updateDisplayName(@AuthenticationPrincipal SintoniaOAuth2User principal,
+                                        @RequestBody UpdateDisplayNameRequest request) {
+        return userService.updateDisplayName(requireUserId(principal), request.displayName());
+    }
+
+    private Long requireUserId(SintoniaOAuth2User principal) {
         if (principal == null || principal.getUserId() == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuário não autenticado.");
         }
-
-        User user = userRepository.findById(principal.getUserId())
-                .orElseThrow(() -> new UserNotFoundException("Usuário não encontrado."));
-        return new MeResponse(user.getId(), user.getName(), user.getEmail(), user.getAvatarUrl());
+        return principal.getUserId();
     }
 }

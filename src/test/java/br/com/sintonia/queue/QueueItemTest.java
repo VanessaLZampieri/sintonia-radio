@@ -15,7 +15,7 @@ import static org.mockito.Mockito.mock;
 
 class QueueItemTest {
 
-    private final Room room = new Room("QTEST123", RoomStatus.ACTIVE);
+    private final Room room = new Room("Sala Teste", "QTEST123", RoomStatus.ACTIVE);
     private final Song song = new Song("qitem-song-1", "Title", null, Duration.ofSeconds(100));
     private final User user = mock(User.class);
     private final Instant addedAt = Instant.parse("2026-01-01T00:00:00Z");

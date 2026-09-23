@@ -51,6 +51,7 @@ public class RoomStateService {
         return new RoomStateResponse(
                 room.getId(),
                 room.getCode(),
+                room.getName(),
                 room.getStatus(),
                 room.getPlaybackMode(),
                 playerState(room),
