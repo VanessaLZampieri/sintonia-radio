@@ -4,6 +4,7 @@ import br.com.sintonia.queue.QueueItemRepository;
 import br.com.sintonia.queue.QueueItemStatus;
 import br.com.sintonia.user.User;
 import br.com.sintonia.user.UserRepository;
+import br.com.sintonia.websocket.RoomEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -12,24 +13,33 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class RoomMemberServiceTest {
+
+    private static final String CLIENT_ID = "550e8400-e29b-41d4-a716-446655440000";
 
     @Mock
     private RoomRepository roomRepository;
 
     @Mock
     private RoomMemberRepository roomMemberRepository;
+
+    @Mock
+    private RoomPresenceRepository roomPresenceRepository;
 
     @Mock
     private UserRepository userRepository;
@@ -40,22 +50,32 @@ class RoomMemberServiceTest {
     @Mock
     private RoomActivityService roomActivityService;
 
+    @Mock
+    private RoomEventPublisher roomEventPublisher;
+
+    @Mock
+    private RoomPlayerService roomPlayerService;
+
     @InjectMocks
     private RoomMemberService roomMemberService;
 
     @Test
     void lastMemberLeavingMarksRoomAsEmpty() {
         Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", 1L);
         User user = mock(User.class);
         when(user.getId()).thenReturn(1L);
         RoomMember member = new RoomMember(room, user);
 
         when(roomRepository.findByCodeForUpdate("ABCDEFGH")).thenReturn(Optional.of(room));
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(roomMemberRepository.findByRoomAndUserAndLeftAtIsNull(room, user)).thenReturn(Optional.of(member));
-        when(roomMemberRepository.countByRoomAndLeftAtIsNull(room)).thenReturn(0L);
+        RoomPresence presence = new RoomPresence(room, user, member, CLIENT_ID,
+                java.time.Instant.now().plusSeconds(90));
+        when(roomPresenceRepository.findByRoomAndUserAndClientSessionId(room, user, CLIENT_ID))
+                .thenReturn(Optional.of(presence));
+        when(roomPresenceRepository.countPresentUsers(any(), any())).thenReturn(0L);
 
-        roomMemberService.leaveRoom("abcdefgh", 1L);
+        roomMemberService.leaveRoom("abcdefgh", 1L, CLIENT_ID);
 
         assertThat(member.getLeftAt()).isNotNull();
         assertThat(room.getEmptySince()).isNotNull();
@@ -69,16 +89,20 @@ class RoomMemberServiceTest {
     @Test
     void leavingWithOtherMembersDoesNotMarkRoomAsEmpty() {
         Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", 1L);
         User user = mock(User.class);
         when(user.getId()).thenReturn(1L);
         RoomMember member = new RoomMember(room, user);
 
         when(roomRepository.findByCodeForUpdate("ABCDEFGH")).thenReturn(Optional.of(room));
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(roomMemberRepository.findByRoomAndUserAndLeftAtIsNull(room, user)).thenReturn(Optional.of(member));
-        when(roomMemberRepository.countByRoomAndLeftAtIsNull(room)).thenReturn(3L);
+        RoomPresence presence = new RoomPresence(room, user, member, CLIENT_ID,
+                java.time.Instant.now().plusSeconds(90));
+        when(roomPresenceRepository.findByRoomAndUserAndClientSessionId(room, user, CLIENT_ID))
+                .thenReturn(Optional.of(presence));
+        when(roomPresenceRepository.countPresentUsers(any(), any())).thenReturn(3L);
 
-        roomMemberService.leaveRoom("abcdefgh", 1L);
+        roomMemberService.leaveRoom("abcdefgh", 1L, CLIENT_ID);
 
         assertThat(member.getLeftAt()).isNotNull();
         assertThat(room.getEmptySince()).isNull();
@@ -87,6 +111,7 @@ class RoomMemberServiceTest {
     @Test
     void enteringEmptyRoomClearsEmptySince() {
         Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", 1L);
         room.markEmpty();
         User user = mock(User.class);
         when(user.getId()).thenReturn(2L);
@@ -97,7 +122,7 @@ class RoomMemberServiceTest {
         when(roomMemberRepository.countByRoomAndLeftAtIsNull(room)).thenReturn(0L);
         when(roomMemberRepository.save(any(RoomMember.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        roomMemberService.enterRoom("abcdefgh", 2L);
+        roomMemberService.enterRoom("abcdefgh", 2L, CLIENT_ID);
 
         assertThat(room.getEmptySince()).isNull();
         assertThat(room.getStatus()).isEqualTo(RoomStatus.ACTIVE);
@@ -110,18 +135,159 @@ class RoomMemberServiceTest {
     @Test
     void leavingClosedRoomDoesNotMarkEmpty() {
         Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
+        ReflectionTestUtils.setField(room, "id", 1L);
         User user = mock(User.class);
         when(user.getId()).thenReturn(1L);
         RoomMember member = new RoomMember(room, user);
 
         when(roomRepository.findByCodeForUpdate("ABCDEFGH")).thenReturn(Optional.of(room));
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(roomMemberRepository.findByRoomAndUserAndLeftAtIsNull(room, user)).thenReturn(Optional.of(member));
+        RoomPresence presence = new RoomPresence(room, user, member, CLIENT_ID,
+                java.time.Instant.now().plusSeconds(90));
+        when(roomPresenceRepository.findByRoomAndUserAndClientSessionId(room, user, CLIENT_ID))
+                .thenReturn(Optional.of(presence));
 
-        roomMemberService.leaveRoom("abcdefgh", 1L);
+        roomMemberService.leaveRoom("abcdefgh", 1L, CLIENT_ID);
 
         assertThat(member.getLeftAt()).isNotNull();
         assertThat(room.getEmptySince()).isNull();
+    }
+
+    @Test
+    void reconnectRenewsExistingPresenceWithoutDuplicatingMembership() {
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", 1L);
+        User user = user(1L, "Ana", null);
+        RoomMember member = new RoomMember(room, user);
+        RoomPresence presence = new RoomPresence(room, user, member, CLIENT_ID, Instant.now().plusSeconds(10));
+        Instant oldExpiry = presence.getExpiresAt();
+
+        when(roomRepository.findByCodeForUpdate("ABCDEFGH")).thenReturn(Optional.of(room));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(roomMemberRepository.findByRoomAndUserAndLeftAtIsNull(room, user)).thenReturn(Optional.of(member));
+        when(roomPresenceRepository.existsByRoomIdAndUserIdAndExpiresAtAfter(eq(1L), eq(1L), any()))
+                .thenReturn(true);
+        when(roomPresenceRepository.findByRoomAndUserAndClientSessionId(room, user, CLIENT_ID))
+                .thenReturn(Optional.of(presence));
+
+        roomMemberService.enterRoom("abcdefgh", 1L, CLIENT_ID);
+
+        assertThat(presence.getExpiresAt()).isAfter(oldExpiry);
+        verify(roomMemberRepository, never()).save(any());
+        verify(roomActivityService, never()).record(any(), any(), any(), any(), any());
+        verifyNoInteractions(roomEventPublisher);
+    }
+
+    @Test
+    void expiredPresenceRenewalPublishesMembersChanged() {
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", 1L);
+        User user = user(1L, "Ana", null);
+        RoomMember member = new RoomMember(room, user);
+        RoomPresence presence = new RoomPresence(room, user, member, CLIENT_ID, Instant.now().minusSeconds(1));
+
+        when(roomRepository.findByCodeForUpdate("ABCDEFGH")).thenReturn(Optional.of(room));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(roomMemberRepository.findByRoomAndUserAndLeftAtIsNull(room, user)).thenReturn(Optional.of(member));
+        when(roomPresenceRepository.findByRoomAndUserAndClientSessionId(room, user, CLIENT_ID))
+                .thenReturn(Optional.of(presence));
+
+        roomMemberService.enterRoom("abcdefgh", 1L, CLIENT_ID);
+
+        verify(roomEventPublisher).publish(eq("ABCDEFGH"), any());
+    }
+
+    @Test
+    void explicitLeaveKeepsMembershipWhileAnotherTabIsPresent() {
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", 1L);
+        User user = user(1L, "Ana", null);
+        RoomMember member = new RoomMember(room, user);
+        RoomPresence presence = new RoomPresence(room, user, member, CLIENT_ID, Instant.now().plusSeconds(90));
+
+        when(roomRepository.findByCodeForUpdate("ABCDEFGH")).thenReturn(Optional.of(room));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(roomPresenceRepository.findByRoomAndUserAndClientSessionId(room, user, CLIENT_ID))
+                .thenReturn(Optional.of(presence));
+        when(roomPresenceRepository.existsByRoomIdAndUserIdAndExpiresAtAfter(eq(1L), eq(1L), any()))
+                .thenReturn(true);
+
+        roomMemberService.leaveRoom("abcdefgh", 1L, CLIENT_ID);
+
+        assertThat(member.getLeftAt()).isNull();
+        verify(roomActivityService, never()).record(any(), any(), any(), any(), any());
+        verify(roomPlayerService).releaseIfClaimed(1L, CLIENT_ID);
+    }
+
+    @Test
+    void staleLegacyMembershipIsReconciled() {
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", 1L);
+        User user = user(1L, "Ana", null);
+        RoomMember member = new RoomMember(room, user);
+        ReflectionTestUtils.setField(member, "id", 7L);
+
+        when(roomMemberRepository.findOpenMemberIdsWithoutPresence()).thenReturn(List.of(7L));
+        when(roomMemberRepository.findById(7L)).thenReturn(Optional.of(member));
+        when(roomRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(room));
+        when(roomPresenceRepository.countPresentUsers(eq(room), any())).thenReturn(0L);
+
+        roomMemberService.expireStalePresences();
+
+        assertThat(member.getLeftAt()).isNotNull();
+        assertThat(room.getEmptySince()).isNotNull();
+        verify(roomPlayerService).releaseIfClaimedByUser(1L, 1L);
+    }
+
+    @Test
+    void expiredLeaseRemovesPresenceAndStartsRoomGracePeriod() {
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", 1L);
+        User user = user(1L, "Ana", null);
+        RoomMember member = new RoomMember(room, user);
+        RoomPresence presence = new RoomPresence(room, user, member, CLIENT_ID, Instant.now().minusSeconds(1));
+        ReflectionTestUtils.setField(presence, "id", 8L);
+
+        when(roomPresenceRepository.findExpiredCandidates(any()))
+                .thenReturn(List.<Object[]>of(new Object[]{8L, 1L}));
+        when(roomPresenceRepository.findById(8L)).thenReturn(Optional.of(presence));
+        when(roomRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(room));
+        when(roomPresenceRepository.countPresentUsers(eq(room), any())).thenReturn(0L);
+
+        roomMemberService.expireStalePresences();
+
+        assertThat(member.getLeftAt()).isNotNull();
+        assertThat(room.getEmptySince()).isNotNull();
+        verify(roomPlayerService).releaseIfClaimed(1L, CLIENT_ID);
+    }
+
+    @Test
+    void closedRoomCannotBeReentered() {
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.CLOSED);
+        when(roomRepository.findByCodeForUpdate("ABCDEFGH")).thenReturn(Optional.of(room));
+
+        assertThatThrownBy(() -> roomMemberService.enterRoom("abcdefgh", 1L, CLIENT_ID))
+                .isInstanceOf(RoomClosedException.class);
+
+        verifyNoInteractions(roomPresenceRepository);
+    }
+
+    @Test
+    void staleOpenMembershipCannotBypassRoomCapacity() {
+        Room room = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
+        ReflectionTestUtils.setField(room, "id", 1L);
+        User user = user(1L, "Ana", null);
+        RoomMember member = new RoomMember(room, user);
+
+        when(roomRepository.findByCodeForUpdate("ABCDEFGH")).thenReturn(Optional.of(room));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(roomMemberRepository.findByRoomAndUserAndLeftAtIsNull(room, user)).thenReturn(Optional.of(member));
+        when(roomMemberRepository.countByRoomAndLeftAtIsNull(room)).thenReturn(15L);
+
+        assertThatThrownBy(() -> roomMemberService.enterRoom("abcdefgh", 1L, CLIENT_ID))
+                .isInstanceOf(RoomFullException.class);
+
+        verify(roomPresenceRepository, never()).save(any());
     }
 
     @Test

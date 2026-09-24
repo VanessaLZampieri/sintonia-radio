@@ -10,6 +10,7 @@ import br.com.sintonia.room.RoomStatus;
 import br.com.sintonia.room.UserNotInRoomException;
 import br.com.sintonia.song.Song;
 import br.com.sintonia.song.SongNotFoundException;
+import br.com.sintonia.song.SongDurationLimitExceededException;
 import br.com.sintonia.song.SongRepository;
 import br.com.sintonia.user.User;
 import br.com.sintonia.user.UserRepository;
@@ -243,6 +244,31 @@ class QueueServiceTest {
 
         assertThat(result).isNotNull();
         verify(queueItemRepository).save(any(QueueItem.class));
+    }
+
+    @Test
+    void allowsSongWithExactlyTwentyMinutes() {
+        song = new Song("twenty", "Twenty", null, Duration.ofMinutes(20));
+        stubHappyPath(0, 0L);
+
+        QueueItem result = queueService.add(ROOM_ID, SONG_ID, USER_ID);
+
+        assertThat(result.getSong()).isSameAs(song);
+        verify(queueItemRepository).save(any(QueueItem.class));
+    }
+
+    @Test
+    void rejectsSongLongerThanTwentyMinutesBeforeChangingQueue() {
+        song = new Song("long", "Long", null, Duration.ofMinutes(20).plusSeconds(1));
+        when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
+        when(songRepository.findById(SONG_ID)).thenReturn(Optional.of(song));
+
+        assertThatThrownBy(() -> queueService.add(ROOM_ID, SONG_ID, USER_ID))
+                .isInstanceOf(SongDurationLimitExceededException.class);
+
+        verify(queueItemRepository, never()).save(any());
+        verifyNoInteractions(roomEventPublisher, roomActivityService);
     }
 
     @Test

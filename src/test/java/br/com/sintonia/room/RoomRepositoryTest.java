@@ -10,6 +10,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Constructor;
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,8 +32,14 @@ class RoomRepositoryTest {
         Room closedWithMember = persistRoom("RRA00003", RoomStatus.CLOSED);
 
         User user = persistUser("rr-g1", "Ana", "rr1@example.com");
-        entityManager.persist(new RoomMember(activeWithMember, user));
-        entityManager.persist(new RoomMember(closedWithMember, user));
+        RoomMember activeMember = new RoomMember(activeWithMember, user);
+        RoomMember closedMember = new RoomMember(closedWithMember, user);
+        entityManager.persist(activeMember);
+        entityManager.persist(closedMember);
+        entityManager.persist(new RoomPresence(activeWithMember, user, activeMember,
+                "550e8400-e29b-41d4-a716-446655440000", Instant.now().plusSeconds(90)));
+        entityManager.persist(new RoomPresence(closedWithMember, user, closedMember,
+                "550e8400-e29b-41d4-a716-446655440001", Instant.now().plusSeconds(90)));
         entityManager.flush();
 
         List<Room> result = roomRepository.findActiveRoomsWithPresentMembers(RoomStatus.ACTIVE);
@@ -40,6 +47,32 @@ class RoomRepositoryTest {
         assertThat(result).extracting(Room::getId)
                 .contains(activeWithMember.getId())
                 .doesNotContain(activeEmpty.getId(), closedWithMember.getId());
+    }
+
+    @Test
+    void excludesActiveRoomInGracePeriodWithNoPresentMembers() {
+        Room activeEmptied = persistRoom("RRA00004", RoomStatus.ACTIVE);
+        User user = persistUser("rr-g2", "Bruno", "rr2@example.com");
+        RoomMember left = new RoomMember(activeEmptied, user);
+        left.leave();
+        entityManager.persist(left);
+        entityManager.flush();
+
+        List<Room> result = roomRepository.findActiveRoomsWithPresentMembers(RoomStatus.ACTIVE);
+
+        assertThat(result).extracting(Room::getId).doesNotContain(activeEmptied.getId());
+    }
+
+    @Test
+    void excludesLegacyOpenMemberWithoutLivePresence() {
+        Room ghostRoom = persistRoom("RRA00005", RoomStatus.ACTIVE);
+        User user = persistUser("rr-g3", "Carla", "rr3@example.com");
+        entityManager.persist(new RoomMember(ghostRoom, user));
+        entityManager.flush();
+
+        List<Room> result = roomRepository.findActiveRoomsWithPresentMembers(RoomStatus.ACTIVE);
+
+        assertThat(result).extracting(Room::getId).doesNotContain(ghostRoom.getId());
     }
 
     private Room persistRoom(String code, RoomStatus status) {

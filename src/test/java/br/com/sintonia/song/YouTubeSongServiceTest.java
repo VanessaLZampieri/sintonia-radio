@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -86,14 +87,29 @@ class YouTubeSongServiceTest {
     @Test
     void searchEnrichesWithChannelAndDuration() {
         when(youTubeClient.search("q", 10)).thenReturn(response(item("a", "Title A")));
-        YouTubeVideoDetails d = new YouTubeVideoDetails("a", "Title A", "Channel X", null,
+        YouTubeVideoDetails d = new YouTubeVideoDetails("a", "Title A", "Channel X", "https://img/a.jpg",
                 Duration.ofMinutes(4).plusSeconds(13), true, false);
         when(youTubeClient.getVideoDetailsBatch(List.of("a"))).thenReturn(Map.of("a", d));
 
         List<SongSearchItemResponse> result = youTubeSongService.search("q", 10);
 
         assertThat(result.get(0).channelTitle()).isEqualTo("Channel X");
+        assertThat(result.get(0).thumbnailUrl()).isEqualTo("https://img/a.jpg");
         assertThat(result.get(0).duration()).isEqualTo("PT4M13S");
+    }
+
+    @Test
+    void searchFiltersVideosLongerThanTwentyMinutes() {
+        when(youTubeClient.search("q", 10)).thenReturn(response(item("short", "Short"), item("long", "Long")));
+        when(youTubeClient.getVideoDetailsBatch(List.of("short", "long"))).thenReturn(Map.of(
+                "short", new YouTubeVideoDetails("short", "Short", "Channel", null,
+                        Duration.ofMinutes(20), true, false),
+                "long", new YouTubeVideoDetails("long", "Long", "Channel", null,
+                        Duration.ofMinutes(20).plusSeconds(1), true, false)));
+
+        List<SongSearchItemResponse> result = youTubeSongService.search("q", 10);
+
+        assertThat(result).extracting(SongSearchItemResponse::videoId).containsExactly("short");
     }
 
     @Test
@@ -135,6 +151,17 @@ class YouTubeSongServiceTest {
 
         assertThat(result).isEmpty();
         verify(songService, never()).findOrCreate(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void selectRejectsExistingSongLongerThanTwentyMinutes() {
+        Song existing = new Song("long", "Long", null, Duration.ofMinutes(21));
+        when(songService.findByYoutubeVideoId("long")).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> youTubeSongService.select("long"))
+                .isInstanceOf(SongDurationLimitExceededException.class);
+
+        verify(youTubeClient, never()).getVideoDetails(any());
     }
 
     private YouTubeSearchResponse response(YouTubeSearchItem... items) {

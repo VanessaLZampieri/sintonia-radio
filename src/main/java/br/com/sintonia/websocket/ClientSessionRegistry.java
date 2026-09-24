@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class ClientSessionRegistry {
 
-    private static final Duration DEFAULT_GRACE_PERIOD = Duration.ofSeconds(3);
+    private static final Duration DEFAULT_GRACE_PERIOD = Duration.ofSeconds(15);
 
     private final ApplicationEventPublisher eventPublisher;
     private final Duration gracePeriod;
@@ -25,6 +25,7 @@ public class ClientSessionRegistry {
     private final Map<String, String> sessionToClient = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> clientToSessions = new ConcurrentHashMap<>();
     private final Map<String, ScheduledFuture<?>> pendingReleases = new ConcurrentHashMap<>();
+    private final Map<String, Long> generations = new ConcurrentHashMap<>();
 
     @Autowired
     public ClientSessionRegistry(ApplicationEventPublisher eventPublisher) {
@@ -42,6 +43,7 @@ public class ClientSessionRegistry {
     }
 
     public synchronized void register(String sessionId, String clientSessionId) {
+        generations.merge(clientSessionId, 1L, Long::sum);
         sessionToClient.put(sessionId, clientSessionId);
         clientToSessions.computeIfAbsent(clientSessionId, key -> ConcurrentHashMap.newKeySet()).add(sessionId);
         cancelPendingRelease(clientSessionId);
@@ -73,9 +75,14 @@ public class ClientSessionRegistry {
     }
 
     private void schedulePendingRelease(String clientSessionId) {
+        long generation = generations.merge(clientSessionId, 1L, Long::sum);
         ScheduledFuture<?> future = scheduler.schedule(() -> {
-            pendingReleases.remove(clientSessionId);
-            if (!hasLiveConnection(clientSessionId)) {
+            synchronized (this) {
+                if (generations.getOrDefault(clientSessionId, 0L) != generation
+                        || hasLiveConnection(clientSessionId)) {
+                    return;
+                }
+                pendingReleases.remove(clientSessionId);
                 eventPublisher.publishEvent(new ClientSessionLostEvent(clientSessionId));
             }
         }, gracePeriod.toMillis(), TimeUnit.MILLISECONDS);

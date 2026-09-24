@@ -10,6 +10,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Constructor;
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,6 +41,10 @@ class RoomMemberRepositoryTest {
         entityManager.persist(present1);
         entityManager.persist(present2);
         entityManager.persist(left);
+        entityManager.persist(new RoomPresence(room, ana, present1,
+                "550e8400-e29b-41d4-a716-446655440010", Instant.now().plusSeconds(90)));
+        entityManager.persist(new RoomPresence(room, bruno, present2,
+                "550e8400-e29b-41d4-a716-446655440011", Instant.now().plusSeconds(90)));
         entityManager.flush();
 
         List<RoomMember> result = roomMemberRepository
@@ -68,6 +73,23 @@ class RoomMemberRepositoryTest {
 
         assertThat(result).hasSize(1);
         assertThat(result).extracting(m -> m.getRoom().getId()).containsExactly(roomA.getId());
+    }
+
+    @Test
+    void userRoomHistoryExcludesClosedRooms() {
+        Room active = new Room("Sala Ativa", "RM000020", RoomStatus.ACTIVE);
+        Room closed = new Room("Sala Fechada", "RM000021", RoomStatus.CLOSED);
+        entityManager.persist(active);
+        entityManager.persist(closed);
+        User ana = persistUser("rm-g20", "Ana", "rm20@example.com");
+        entityManager.persist(new RoomMember(active, ana));
+        entityManager.persist(new RoomMember(closed, ana));
+        entityManager.flush();
+
+        List<RoomMember> result = roomMemberRepository
+                .findByUserIdAndRoomStatusOrderByJoinedAtDesc(ana.getId(), RoomStatus.ACTIVE);
+
+        assertThat(result).extracting(member -> member.getRoom().getId()).containsExactly(active.getId());
     }
 
     private User persistUser(String googleId, String displayName, String email) {

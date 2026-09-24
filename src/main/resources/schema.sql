@@ -18,3 +18,9 @@ UPDATE rooms
     SET name = 'Sala ' || code
     WHERE name IS NULL OR btrim(name) = '';
 ALTER TABLE rooms ALTER COLUMN name SET NOT NULL;
+
+CREATE INDEX IF NOT EXISTS ix_room_presences_expires_at
+    ON room_presences (expires_at);
+
+CREATE INDEX IF NOT EXISTS ix_room_presences_client_session_id
+    ON room_presences (client_session_id);

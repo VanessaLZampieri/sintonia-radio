@@ -41,7 +41,7 @@ class RoomPlayerServiceTest {
     private RoomRepository roomRepository;
 
     @Mock
-    private RoomMemberRepository roomMemberRepository;
+    private RoomPresenceRepository roomPresenceRepository;
 
     @Mock
     private UserRepository userRepository;
@@ -110,7 +110,9 @@ class RoomPlayerServiceTest {
     void claimRejectsUserNotInRoom() {
         when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(false);
+        when(roomPresenceRepository.existsByRoomIdAndUserIdAndClientSessionIdAndExpiresAtAfter(
+                eq(ROOM_ID), eq(USER_ID), eq(SESSION_ID), org.mockito.ArgumentMatchers.any(Instant.class)))
+                .thenReturn(false);
 
         assertThatThrownBy(() -> roomPlayerService.claim(ROOM_ID, SESSION_ID, USER_ID))
                 .isInstanceOf(UserNotInRoomException.class);
@@ -174,6 +176,17 @@ class RoomPlayerServiceTest {
 
         roomPlayerService.releaseByClientSessionId(SESSION_ID);
 
+        verifyNoInteractions(roomEventPublisher);
+    }
+
+    @Test
+    void releaseIfClaimedIgnoresAnotherSession() {
+        makePlayer(OTHER_SESSION_ID);
+        when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
+
+        roomPlayerService.releaseIfClaimed(ROOM_ID, SESSION_ID);
+
+        assertThat(room.getPlayerClientSessionId()).isEqualTo(OTHER_SESSION_ID);
         verifyNoInteractions(roomEventPublisher);
     }
 
@@ -295,7 +308,9 @@ class RoomPlayerServiceTest {
 
     private void stubClaimHappyPath() {
         when(roomRepository.findByIdForUpdate(ROOM_ID)).thenReturn(Optional.of(room));
-        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
+        when(roomPresenceRepository.existsByRoomIdAndUserIdAndClientSessionIdAndExpiresAtAfter(
+                eq(ROOM_ID), eq(USER_ID), eq(SESSION_ID), org.mockito.ArgumentMatchers.any(Instant.class)))
+                .thenReturn(true);
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
     }
 

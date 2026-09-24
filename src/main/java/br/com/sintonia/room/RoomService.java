@@ -40,6 +40,7 @@ public class RoomService {
         for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
             String code = generateCode();
             Room room = new Room(trimmed, code, RoomStatus.ACTIVE);
+            room.markEmpty();
             try {
                 return roomRepository.save(room);
             } catch (DataIntegrityViolationException exception) {

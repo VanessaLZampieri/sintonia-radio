@@ -208,6 +208,30 @@ class AutoDjServiceTest {
     }
 
     @Test
+    void contextualSearchSkipsCandidateLongerThanTwentyMinutes() {
+        stubBase();
+        stubSeed(song1);
+        YouTubeVideoDetails longVideo = new YouTubeVideoDetails(
+                "long", "Long", "Channel", null, Duration.ofMinutes(21), true, false);
+        when(youTubeSongService.searchDetails(anyString(), anyInt()))
+                .thenReturn(List.of(longVideo, details("song-2")));
+
+        QueueItem result = autoDjService.createNext(ROOM_ID).orElseThrow();
+
+        assertThat(result.getSong().getYoutubeVideoId()).isEqualTo("song-2");
+    }
+
+    @Test
+    void databaseFallbackRejectsSongsLongerThanTwentyMinutes() {
+        stubBase();
+        Song longSong = new Song("long", "Long", null, Duration.ofMinutes(21));
+        when(songRepository.findAll()).thenReturn(List.of(longSong));
+
+        assertThat(autoDjService.createNext(ROOM_ID)).isEmpty();
+        verify(queueItemRepository, never()).save(any());
+    }
+
+    @Test
     void allCandidatesIneligibleFallsBackToDatabase() {
         stubBase();
         stubSeed(song1);

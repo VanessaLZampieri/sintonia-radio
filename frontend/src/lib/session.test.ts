@@ -31,4 +31,20 @@ describe('getOrCreateClientSessionId', () => {
 
     expect(getOrCreateClientSessionId()).toBe('id-persistido')
   })
+
+  it('gera outro ID quando uma nova aba herda o sessionStorage', () => {
+    const store = new Map([['sintonia.clientSessionId', 'id-copiado']])
+    const browserWindow = { name: '' }
+    vi.stubGlobal('window', browserWindow)
+    vi.stubGlobal('sessionStorage', {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => store.set(key, value),
+    })
+
+    const id = getOrCreateClientSessionId()
+
+    expect(id).not.toBe('id-copiado')
+    expect(browserWindow.name).toBe(`sintonia-client:${id}`)
+    expect(store.get('sintonia.clientSessionId')).toBe(id)
+  })
 })

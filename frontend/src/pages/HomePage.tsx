@@ -2,21 +2,51 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError, logout } from '../api'
 import { useAuth } from '../auth'
-import { Notice } from '../components/Notice'
+import { Avatar } from '../components/Avatar'
+import { Brand } from '../components/Brand'
+import { notifyFailure, notifySuccess } from '../lib/notify'
+import { getOrCreateClientSessionId } from '../lib/session'
 import type { ActiveRoom, UserRoom } from '../types'
+
+function NoteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M9 18V6l10-2v11"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="6" cy="18" r="3" fill="currentColor" />
+      <circle cx="16" cy="15" r="3" fill="currentColor" />
+    </svg>
+  )
+}
 
 export function HomePage() {
   const { me, reload } = useAuth()
   const navigate = useNavigate()
   const [code, setCode] = useState('')
   const [roomName, setRoomName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [editingName, setEditingName] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [savingName, setSavingName] = useState(false)
-  const [nameMessage, setNameMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [activeRooms, setActiveRooms] = useState<ActiveRoom[]>([])
   const [myRooms, setMyRooms] = useState<UserRoom[]>([])
+
+  useEffect(() => {
+    if (me?.displayName) {
+      setDisplayName(me.displayName)
+    }
+  }, [me?.displayName])
+
+  useEffect(() => {
+    void loadRooms()
+  }, [])
 
   const loadRooms = async () => {
     try {
@@ -28,25 +58,15 @@ export function HomePage() {
     }
   }
 
-  useEffect(() => {
-    void loadRooms()
-  }, [])
-
-  useEffect(() => {
-    if (me?.displayName) {
-      setDisplayName(me.displayName)
-    }
-  }, [me?.displayName])
-
   const saveDisplayName = async () => {
     setSavingName(true)
-    setNameMessage(null)
     try {
       await api.updateDisplayName(displayName)
       await reload()
-      setNameMessage('Nome de exibição atualizado.')
+      setEditingName(false)
+      notifySuccess('Nome de exibição atualizado.')
     } catch (err) {
-      setNameMessage(err instanceof ApiError ? err.message : 'Não foi possível atualizar o nome.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível atualizar o nome.')
     } finally {
       setSavingName(false)
     }
@@ -55,16 +75,15 @@ export function HomePage() {
   const createRoom = async () => {
     const name = roomName.trim()
     if (name.length < 3) {
-      setError('Digite um nome para a sala (mínimo 3 caracteres).')
+      notifyFailure('Digite um nome para a sala (mínimo 3 caracteres).')
       return
     }
     setBusy(true)
-    setError(null)
     try {
       const room = await api.createRoom(name)
       navigate(`/room/${room.code}`)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível criar a sala.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível criar a sala.')
     } finally {
       setBusy(false)
     }
@@ -73,16 +92,15 @@ export function HomePage() {
   const enterByCode = async (rawCode: string) => {
     const trimmed = rawCode.trim()
     if (!trimmed) {
-      setError('Digite o código da sala.')
+      notifyFailure('Digite o código da sala.')
       return
     }
     setBusy(true)
-    setError(null)
     try {
-      await api.enterRoom(trimmed)
+      await api.enterRoom(trimmed, getOrCreateClientSessionId())
       navigate(`/room/${trimmed.toUpperCase()}`)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível entrar na sala.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível entrar na sala.')
     } finally {
       setBusy(false)
     }
@@ -94,154 +112,197 @@ export function HomePage() {
     navigate('/login')
   }
 
+  const visibleMyRooms = myRooms.filter((room) => room.status === 'ACTIVE')
+
   return (
     <div className="container stack">
-      <header className="row">
-        <div className="avatar">
-          {me?.avatarUrl ? (
-            <img src={me.avatarUrl} alt={me.displayName} />
-          ) : (
-            (me?.displayName?.[0] ?? me?.name?.[0] ?? '?')
-          )}
-        </div>
-        <div className="grow">
-          <div>{me?.displayName}</div>
-          <div className="muted" style={{ fontSize: '0.85rem' }}>
-            {me?.name}
+      <header className="home-header">
+        <Brand />
+
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <div className="user-chip">
+            <Avatar
+              userId={me?.id ?? 0}
+              displayName={me?.displayName ?? ''}
+              avatarUrl={me?.avatarUrl ?? null}
+            />
+            <div className="stack" style={{ gap: 2 }}>
+              <span>{me?.displayName}</span>
+              <span className="muted" style={{ fontSize: '0.8rem' }}>{me?.name}</span>
+            </div>
+            <button className="btn btn-sm btn-ghost" onClick={() => setEditingName((v) => !v)}>
+              Editar
+            </button>
+            <button className="btn btn-sm btn-ghost" onClick={doLogout}>
+              Sair
+            </button>
           </div>
-          <div className="muted" style={{ fontSize: '0.85rem' }}>
-            {me?.email}
-          </div>
         </div>
-        <button className="btn btn-sm" onClick={doLogout}>
-          Sair
-        </button>
+
+        {editingName && (
+          <div className="row" style={{ width: '100%' }}>
+            <input
+              className="input grow"
+              placeholder="Seu nome de exibição"
+              value={displayName}
+              maxLength={20}
+              onChange={(event) => setDisplayName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  void saveDisplayName()
+                }
+              }}
+            />
+            <button className="btn" onClick={saveDisplayName} disabled={savingName}>
+              {savingName ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
+        )}
       </header>
 
-      <div className="card stack">
-        <h2 style={{ margin: 0 }}>Nome de exibição</h2>
-        <p className="muted" style={{ margin: 0 }}>
-          Este é o nome que as outras pessoas veem nas salas.
-        </p>
-        <div className="row">
-          <input
-            className="input grow"
-            placeholder="Seu nome de exibição"
-            value={displayName}
-            maxLength={20}
-            onChange={(event) => setDisplayName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                void saveDisplayName()
-              }
-            }}
-          />
-          <button className="btn" onClick={saveDisplayName} disabled={savingName}>
-            {savingName ? 'Salvando…' : 'Salvar'}
+      <div className="create-bar">
+        {creating ? (
+          <>
+            <input
+              className="input"
+              placeholder="Nome da sala"
+              value={roomName}
+              maxLength={40}
+              autoFocus
+              onChange={(event) => setRoomName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  void createRoom()
+                }
+              }}
+            />
+            <button className="btn btn-primary" onClick={createRoom} disabled={busy}>
+              Criar
+            </button>
+            <button className="btn btn-ghost" onClick={() => setCreating(false)}>
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <button className="btn btn-primary" onClick={() => setCreating(true)}>
+            + Criar uma sala
           </button>
-        </div>
-        {nameMessage && (
-          <Notice type="success" onClose={() => setNameMessage(null)}>
-            {nameMessage}
-          </Notice>
         )}
+
+        <input
+          className="input"
+          style={{ maxWidth: 240 }}
+          placeholder="Entrar com código"
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              void enterByCode(code)
+            }
+          }}
+        />
+        <button className="btn" onClick={() => void enterByCode(code)} disabled={busy}>
+          Entrar
+        </button>
       </div>
 
-      <div className="grid-2">
-        <div className="card stack">
-          <h2 style={{ margin: 0 }}>Criar sala</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            Dê um nome à sala e compartilhe o código com quem quiser.
-          </p>
-          <input
-            className="input"
-            placeholder="Nome da sala"
-            value={roomName}
-            maxLength={40}
-            onChange={(event) => setRoomName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                void createRoom()
-              }
-            }}
-          />
-          <button className="btn btn-primary" onClick={createRoom} disabled={busy}>
-            Criar nova sala
-          </button>
-        </div>
-
-        <div className="card stack">
-          <h2 style={{ margin: 0 }}>Entrar em uma sala</h2>
-          <input
-            className="input"
-            placeholder="Código da sala"
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                void enterByCode(code)
-              }
-            }}
-          />
-          <button className="btn" onClick={() => void enterByCode(code)} disabled={busy}>
-            Entrar
-          </button>
-        </div>
-      </div>
-
-      <div className="card stack">
-        <h2 style={{ margin: 0 }}>Salas no ar</h2>
-        {activeRooms.length === 0 && <div className="muted">Nenhuma sala no ar agora.</div>}
-        <div className="list">
-          {activeRooms.map((room) => (
-            <div className="list-item" key={room.roomId}>
-              <div className="grow">
-                <div className="ellipsis">{room.name}</div>
-                <div className="muted" style={{ fontSize: '0.85rem' }}>
-                  {room.code} · {room.participantCount} participante(s) · {room.waitingCount} na fila
-                  {room.nowPlaying ? ` · Tocando: ${room.nowPlaying.title}` : ''}
+      <section className="section">
+        <h2 className="section-title">Salas no ar</h2>
+        {activeRooms.length === 0 ? (
+          <div className="muted">Nenhuma sala no ar agora.</div>
+        ) : (
+          <div className="room-grid">
+            {activeRooms.map((room) => (
+              <div className="room-card" key={room.roomId}>
+                <div className="room-card-head">
+                  <div className="room-card-title">{room.name}</div>
+                  <span className="badge badge--live">
+                    <span className="live-dot" />
+                    AO VIVO
+                  </span>
                 </div>
-              </div>
-              <button className="btn btn-sm" onClick={() => void enterByCode(room.code)} disabled={busy}>
-                Entrar
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="card stack">
-        <h2 style={{ margin: 0 }}>Suas salas</h2>
-        {myRooms.length === 0 && <div className="muted">Você ainda não participou de nenhuma sala.</div>}
-        <div className="list">
-          {myRooms.map((room) => (
-            <div className="list-item" key={room.roomId}>
-              <div className="grow">
-                <div className="ellipsis">{room.name}</div>
-                <div className="muted" style={{ fontSize: '0.85rem' }}>
-                  {room.code} · {room.participantCount} participante(s)
-                  {room.status === 'CLOSED' ? ' · Encerrada' : ''}
+                <div className="room-card-code">{room.code}</div>
+                {room.nowPlaying ? (
+                  <div className="stack" style={{ gap: 2 }}>
+                    <div className="now-line">
+                      <NoteIcon />
+                      <span className="now-line-text">{room.nowPlaying.title}</span>
+                    </div>
+                    {room.nowPlaying.addedBy && (
+                      <div className="added-by muted">
+                        <Avatar
+                          userId={room.nowPlaying.addedBy.userId}
+                          displayName={room.nowPlaying.addedBy.displayName}
+                          avatarUrl={room.nowPlaying.addedBy.avatarUrl}
+                          size="sm"
+                        />
+                        <span>adicionada por {room.nowPlaying.addedBy.displayName}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="muted">Sem música no momento</div>
+                )}
+                <div className="room-card-meta">
+                  <span>
+                    {room.participantCount} {room.participantCount === 1 ? 'pessoa' : 'pessoas'}
+                  </span>
+                  <span>·</span>
+                  <span>{room.waitingCount} na fila</span>
                 </div>
-              </div>
-              {room.canEnter ? (
-                <button className="btn btn-sm" onClick={() => void enterByCode(room.code)} disabled={busy}>
+                <button className="btn" onClick={() => void enterByCode(room.code)} disabled={busy}>
                   Entrar
                 </button>
-              ) : room.status === 'CLOSED' ? (
-                <span className="muted">Encerrada</span>
-              ) : (
-                <span className="muted">Cheia</span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
-      {error && (
-        <Notice type="error" onClose={() => setError(null)}>
-          {error}
-        </Notice>
-      )}
+      <section className="section">
+        <h2 className="section-title">Suas salas</h2>
+        {visibleMyRooms.length === 0 ? (
+          <div className="muted">Você ainda não participou de nenhuma sala.</div>
+        ) : (
+          <div className="room-grid">
+            {visibleMyRooms.map((room) => {
+              const live = room.participantCount > 0
+              return (
+                <div className="room-card" key={room.roomId}>
+                  <div className="room-card-head">
+                    <div className="room-card-title">{room.name}</div>
+                    {live ? (
+                      <span className="badge badge--live">
+                        <span className="live-dot" />
+                        AO VIVO
+                      </span>
+                    ) : (
+                      <span className="badge">VAZIA</span>
+                    )}
+                  </div>
+                  <div className="room-card-code">{room.code}</div>
+                  <div className="room-card-meta">
+                    <span>
+                      {room.participantCount} {room.participantCount === 1 ? 'pessoa' : 'pessoas'}
+                    </span>
+                  </div>
+                  {room.canEnter ? (
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => void enterByCode(room.code)}
+                      disabled={busy}
+                    >
+                      Entrar
+                    </button>
+                  ) : (
+                    <div className="muted">Cheia</div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
     </div>
   )
 }

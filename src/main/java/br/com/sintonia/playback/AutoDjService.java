@@ -8,6 +8,7 @@ import br.com.sintonia.room.RoomRepository;
 import br.com.sintonia.song.Song;
 import br.com.sintonia.song.SongRepository;
 import br.com.sintonia.song.SongService;
+import br.com.sintonia.song.SongDurationPolicy;
 import br.com.sintonia.song.YouTubeSongService;
 import br.com.sintonia.youtube.YouTubeVideoDetails;
 import br.com.sintonia.websocket.QueueChangeAction;
@@ -101,7 +102,8 @@ public class AutoDjService {
         seed.ifPresent(s -> ineligible.add(s.getYoutubeVideoId()));
 
         for (YouTubeVideoDetails candidate : contextual) {
-            if (ineligible.contains(candidate.videoId())) {
+            if (ineligible.contains(candidate.videoId())
+                    || !SongDurationPolicy.isAllowed(candidate.duration())) {
                 continue;
             }
             return Optional.of(persistRecommended(room, candidate));
@@ -147,6 +149,7 @@ public class AutoDjService {
     private Optional<QueueItem> fallbackFromDatabase(Room room, Set<String> ineligible) {
         List<Song> eligible = songRepository.findAll().stream()
                 .filter(song -> !ineligible.contains(song.getYoutubeVideoId()))
+                .filter(song -> SongDurationPolicy.isAllowed(song.getDuration()))
                 .toList();
 
         if (eligible.isEmpty()) {

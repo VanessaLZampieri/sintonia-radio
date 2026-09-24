@@ -16,6 +16,7 @@ class RoomEventTypeTest {
                 RoomEventType.PLAYBACK_PAUSED,
                 RoomEventType.PLAYBACK_RESUMED,
                 RoomEventType.QUEUE_CHANGED,
+                RoomEventType.MEMBERS_CHANGED,
                 RoomEventType.PLAYER_CHANGED,
                 RoomEventType.PLAYBACK_MODE_CHANGED,
                 RoomEventType.SKIP_VOTE_CHANGED);

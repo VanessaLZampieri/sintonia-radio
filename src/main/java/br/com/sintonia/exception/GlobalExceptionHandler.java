@@ -19,6 +19,7 @@ import br.com.sintonia.queue.SongAlreadyInQueueException;
 import br.com.sintonia.queue.QueueItemNotFoundException;
 import br.com.sintonia.queue.QueueLimitExceededException;
 import br.com.sintonia.song.SongNotFoundException;
+import br.com.sintonia.song.SongDurationLimitExceededException;
 import br.com.sintonia.user.InvalidDisplayNameException;
 import br.com.sintonia.user.UserNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -82,6 +83,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(SongAlreadyInQueueException.class)
     public ResponseEntity<Map<String, String>> handleSongAlreadyInQueue(SongAlreadyInQueueException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(SongDurationLimitExceededException.class)
+    public ResponseEntity<Map<String, String>> handleSongDurationLimit(
+            SongDurationLimitExceededException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("message", exception.getMessage()));
     }

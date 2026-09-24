@@ -9,6 +9,7 @@ import type {
   RoomActivity,
   RoomMember,
   RoomPlayer,
+  RoomSummary,
   RoomState,
   SkipVote,
   Song,
@@ -93,16 +94,30 @@ export const api = {
 
   myRooms: () => request<UserRoom[]>('/api/me/rooms'),
 
-  enterRoom: (code: string) =>
-    request<RoomMember>(`/rooms/${encodeURIComponent(code)}/members`, { method: 'POST' }),
+  enterRoom: (code: string, clientSessionId: string) =>
+    request<RoomMember>(`/rooms/${encodeURIComponent(code)}/members`, {
+      method: 'POST',
+      body: jsonBody({ clientSessionId }),
+    }),
 
-  leaveRoom: (code: string) =>
-    request<void>(`/rooms/${encodeURIComponent(code)}/members`, { method: 'DELETE' }),
+  leaveRoom: (code: string, clientSessionId: string) =>
+    request<void>(`/rooms/${encodeURIComponent(code)}/members`, {
+      method: 'DELETE',
+      body: jsonBody({ clientSessionId }),
+    }),
+
+  renewPresence: (code: string, clientSessionId: string) =>
+    request<RoomMember>(`/rooms/${encodeURIComponent(code)}/presence`, {
+      method: 'POST',
+      body: jsonBody({ clientSessionId }),
+    }),
 
   roomState: (roomId: number) => request<RoomState>(`/api/rooms/${roomId}/state`),
 
   roomActivities: (roomId: number) =>
     request<RoomActivity[]>(`/api/rooms/${roomId}/activities`),
+
+  roomSummary: (roomId: number) => request<RoomSummary>(`/api/rooms/${roomId}/summary`),
 
   searchSongs: (query: string, maxResults = 10) =>
     request<SongSearchItem[]>(

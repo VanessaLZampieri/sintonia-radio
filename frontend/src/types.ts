@@ -12,6 +12,7 @@ export type RoomEventType =
   | 'PLAYBACK_PAUSED'
   | 'PLAYBACK_RESUMED'
   | 'QUEUE_CHANGED'
+  | 'MEMBERS_CHANGED'
   | 'PLAYER_CHANGED'
   | 'PLAYBACK_MODE_CHANGED'
   | 'SKIP_VOTE_CHANGED'
@@ -92,6 +93,26 @@ export interface UserRoom {
   participantCount: number
 }
 
+export interface RoomSummary {
+  roomId: number
+  playbackCount: number
+  participantCount: number
+  skippedCount: number
+  autoDjPlaybackCount: number
+  skipVoteCount: number
+  contributions: RoomContribution[]
+}
+
+export interface RoomContribution {
+  userId: number
+  displayName: string
+  avatarUrl: string | null
+  addedCount: number
+  playedCount: number
+  skippedCount: number
+  skipVoteCount: number
+}
+
 export interface Song {
   id: number
   youtubeVideoId: string
@@ -104,6 +125,7 @@ export interface SongSearchItem {
   videoId: string | null
   title: string | null
   channelTitle?: string | null
+  thumbnailUrl?: string | null
   duration?: string | null
 }
 

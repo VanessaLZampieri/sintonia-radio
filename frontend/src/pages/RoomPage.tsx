@@ -4,9 +4,39 @@ import type { Client } from '@stomp/stompjs'
 import { api, ApiError } from '../api'
 import { YouTubePlayer } from '../components/YouTubePlayer'
 import { Notice } from '../components/Notice'
+import { Avatar } from '../components/Avatar'
+import { Brand } from '../components/Brand'
+import { Equalizer } from '../components/Equalizer'
+import { RoomSummaryDialog } from '../components/RoomSummaryDialog'
 import { clampSeekSeconds, formatDuration, formatSeconds, isPausedState, parseDurationSeconds, resumeTargetSeconds, shouldPauseLocally, shouldPlay } from '../lib/playback'
+import { notifyFailure, notifySuccess } from '../lib/notify'
 import { connectToRoom, getOrCreateClientSessionId } from '../socket'
-import type { HistoryItem, RoomActivity, RoomState, SongSearchItem } from '../types'
+import type { HistoryItem, RoomActivity, RoomActivityType, RoomState, RoomSummary, SongSearchItem } from '../types'
+
+type MobileTab = 'sala' | 'buscar' | 'pessoas' | 'atividade'
+
+function activityGlyph(type: RoomActivityType): string {
+  switch (type) {
+    case 'MEMBER_JOINED':
+      return '+'
+    case 'MEMBER_LEFT':
+      return '−'
+    case 'SONG_ADDED':
+      return '♪'
+    case 'SONG_REMOVED':
+      return '−'
+    case 'ROOM_RENAMED':
+      return '✎'
+    case 'PLAYBACK_STARTED':
+      return '▶'
+    case 'PLAYBACK_FINISHED':
+      return '■'
+    case 'PLAYBACK_SKIPPED':
+      return '⏭'
+    default:
+      return '•'
+  }
+}
 
 export function RoomPage() {
   const { code = '' } = useParams()
@@ -25,14 +55,19 @@ export function RoomPage() {
   const [localPaused, setLocalPaused] = useState(false)
   const [syncRequest, setSyncRequest] = useState<{ seconds: number; nonce: number } | null>(null)
   const [roomName, setRoomName] = useState('')
+  const [renaming, setRenaming] = useState(false)
   const [volume, setVolume] = useState(100)
   const [muted, setMuted] = useState(false)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [playerError, setPlayerError] = useState(false)
+  const [mobileTab, setMobileTab] = useState<MobileTab>('sala')
+  const [summary, setSummary] = useState<RoomSummary | null>(null)
+  const [summaryOpen, setSummaryOpen] = useState(false)
+  const [summaryLoading, setSummaryLoading] = useState(false)
 
   const mySessionId = useMemo(() => getOrCreateClientSessionId(), [])
   const socketRef = useRef<Client | null>(null)
   const codeRef = useRef(code.trim().toUpperCase())
+  const summaryRequestRef = useRef(0)
 
   const loadState = useCallback(async (id: number) => {
     setState(await api.roomState(id))
@@ -51,7 +86,7 @@ export function RoomPage() {
 
     async function init() {
       try {
-        const member = await api.enterRoom(codeRef.current)
+        const member = await api.enterRoom(codeRef.current, mySessionId)
         if (!active) {
           return
         }
@@ -71,7 +106,7 @@ export function RoomPage() {
     return () => {
       active = false
     }
-  }, [loadState, loadHistory, loadActivities])
+  }, [loadState, loadHistory, loadActivities, mySessionId])
 
   useEffect(() => {
     if (!entered || !roomId) {
@@ -80,6 +115,7 @@ export function RoomPage() {
     const client = connectToRoom(
       codeRef.current,
       () => {
+        void api.renewPresence(codeRef.current, mySessionId)
         void loadState(roomId)
         void loadHistory(roomId)
         void loadActivities(roomId)
@@ -96,7 +132,17 @@ export function RoomPage() {
       client.deactivate()
       socketRef.current = null
     }
-  }, [entered, roomId, loadState, loadHistory, loadActivities])
+  }, [entered, roomId, loadState, loadHistory, loadActivities, mySessionId])
+
+  useEffect(() => {
+    if (!entered) {
+      return
+    }
+    const heartbeat = window.setInterval(() => {
+      void api.renewPresence(codeRef.current, mySessionId).catch(() => {})
+    }, 30000)
+    return () => window.clearInterval(heartbeat)
+  }, [entered, mySessionId])
 
   const refresh = useCallback(() => {
     if (roomId) {
@@ -121,17 +167,46 @@ export function RoomPage() {
     setPlayerError(false)
   }, [state?.currentPlayback?.playbackId])
 
+  const closeSummary = useCallback(() => {
+    summaryRequestRef.current += 1
+    setSummaryOpen(false)
+    setSummaryLoading(false)
+  }, [])
+
+  const openSummary = async () => {
+    if (!roomId) {
+      return
+    }
+    const requestId = ++summaryRequestRef.current
+    setSummaryOpen(true)
+    setSummaryLoading(true)
+    try {
+      const nextSummary = await api.roomSummary(roomId)
+      if (requestId === summaryRequestRef.current) {
+        setSummary(nextSummary)
+      }
+    } catch (err) {
+      if (requestId === summaryRequestRef.current) {
+        setSummaryOpen(false)
+        notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível carregar o resumo da sala.')
+      }
+    } finally {
+      if (requestId === summaryRequestRef.current) {
+        setSummaryLoading(false)
+      }
+    }
+  }
+
   const search = async () => {
     const trimmed = query.trim()
     if (!trimmed) {
       return
     }
     setSearching(true)
-    setError(null)
     try {
       setResults(await api.searchSongs(trimmed))
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível buscar músicas.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível buscar músicas.')
     } finally {
       setSearching(false)
     }
@@ -141,15 +216,15 @@ export function RoomPage() {
     if (!videoId || !roomId) {
       return
     }
-    setError(null)
     try {
       const song = await api.selectSong(videoId)
       await api.addToQueue(roomId, song.id)
       setQuery('')
       setResults([])
+      notifySuccess('Música adicionada à fila.')
       refresh()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível adicionar a música.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível adicionar a música.')
     }
   }
 
@@ -157,12 +232,11 @@ export function RoomPage() {
     if (!roomId) {
       return
     }
-    setError(null)
     try {
       await api.removeFromQueue(roomId, queueItemId)
       refresh()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível remover a música.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível remover a música.')
     }
   }
 
@@ -170,12 +244,12 @@ export function RoomPage() {
     if (!roomId) {
       return
     }
-    setError(null)
     try {
       await api.claimPlayer(roomId, mySessionId)
+      notifySuccess('Você assumiu a caixa.')
       refresh()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível assumir o player.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível assumir o player.')
     }
   }
 
@@ -183,12 +257,12 @@ export function RoomPage() {
     if (!roomId) {
       return
     }
-    setError(null)
     try {
       await api.releasePlayer(roomId, mySessionId)
+      notifySuccess('Você liberou a caixa.')
       refresh()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível liberar o player.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível liberar o player.')
     }
   }
 
@@ -196,12 +270,11 @@ export function RoomPage() {
     if (!roomId) {
       return
     }
-    setError(null)
     try {
       await api.changePlaybackMode(roomId, mode)
       refresh()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível alterar o modo.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível alterar o modo.')
     }
   }
 
@@ -209,14 +282,13 @@ export function RoomPage() {
     if (!roomId) {
       return
     }
-    setError(null)
-    setSuccessMessage(null)
     try {
       await api.renameRoom(roomId, roomName)
-      setSuccessMessage('Nome da sala alterado.')
+      setRenaming(false)
+      notifySuccess('Nome da sala alterado.')
       refresh()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível renomear a sala.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível renomear a sala.')
     }
   }
 
@@ -224,12 +296,12 @@ export function RoomPage() {
     if (!roomId) {
       return
     }
-    setError(null)
     try {
       await api.skipVote(roomId)
+      notifySuccess('Voto registrado.')
       refresh()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível votar para pular.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível votar para pular.')
     }
   }
 
@@ -241,12 +313,11 @@ export function RoomPage() {
       setLocalPaused(true)
       return
     }
-    setError(null)
     try {
       await api.pausePlayback(currentPlayback.playbackId, mySessionId)
       refresh()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível pausar.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível pausar.')
     }
   }
 
@@ -255,7 +326,6 @@ export function RoomPage() {
       return
     }
     if (state && shouldPauseLocally(state.playbackMode)) {
-      setError(null)
       try {
         const fresh = await api.roomState(roomId)
         const target = fresh.currentPlayback
@@ -268,16 +338,15 @@ export function RoomPage() {
         setLocalPaused(false)
         setSyncRequest({ seconds: target, nonce: Date.now() })
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Não foi possível retomar.')
+        notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível retomar.')
       }
       return
     }
-    setError(null)
     try {
       await api.resumePlayback(currentPlayback.playbackId, mySessionId)
       refresh()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível retomar.')
+      notifyFailure(err instanceof ApiError ? err.message : 'Não foi possível retomar.')
     }
   }
 
@@ -320,7 +389,7 @@ export function RoomPage() {
 
   const leave = async () => {
     try {
-      await api.leaveRoom(codeRef.current)
+      await api.leaveRoom(codeRef.current, mySessionId)
     } catch {
       // Ignora falha ao sair; a navegação continua.
     }
@@ -371,57 +440,123 @@ export function RoomPage() {
     ? Math.min(100, Math.max(0, (displayedSeconds / durationSeconds) * 100))
     : 0
 
-  const activityText = (activity: RoomActivity): string => {
-    const who = activity.actorDisplayName ?? ''
-    const song = activity.songTitle ? `"${activity.songTitle}"` : ''
+  const votePercent = state?.skipVote
+    ? Math.min(100, Math.round((state.skipVote.votes / Math.max(1, state.skipVote.requiredVotes)) * 100))
+    : 0
+
+  const tabClass = (tab: MobileTab) => (mobileTab === tab ? 'is-mobile-active' : '')
+
+  const showResults = results.length > 0
+
+  const clearSearch = () => {
+    setQuery('')
+    setResults([])
+  }
+
+  const activityLine = (activity: RoomActivity) => {
     switch (activity.type) {
       case 'MEMBER_JOINED':
-        return `${who} entrou na sala`
+        return (
+          <span>
+            <strong>{activity.actorDisplayName}</strong> entrou na sala
+          </span>
+        )
       case 'MEMBER_LEFT':
-        return `${who} saiu da sala`
+        return (
+          <span>
+            <strong>{activity.actorDisplayName}</strong> saiu da sala
+          </span>
+        )
       case 'SONG_ADDED':
-        return `${who} adicionou ${song}`
+        return (
+          <div className="stack" style={{ gap: 2 }}>
+            <span>
+              <strong>{activity.actorDisplayName}</strong> adicionou
+            </span>
+            <span className="activity-song">{activity.songTitle}</span>
+          </div>
+        )
       case 'SONG_REMOVED':
-        return `${who} removeu ${song}`
+        return (
+          <span>
+            <strong>{activity.actorDisplayName}</strong> removeu{' '}
+            <span className="activity-song">{activity.songTitle}</span>
+          </span>
+        )
       case 'ROOM_RENAMED':
-        return `${who} mudou o nome da sala para "${activity.detail ?? ''}"`
+        return (
+          <span>
+            <strong>{activity.actorDisplayName}</strong> mudou o nome da sala para “{activity.detail}”
+          </span>
+        )
       case 'PLAYBACK_STARTED':
-        return `${song} começou a tocar`
+        return (
+          <span>
+            <span className="activity-song">{activity.songTitle}</span> começou a tocar
+          </span>
+        )
       case 'PLAYBACK_FINISHED':
-        return `${song} terminou`
+        return (
+          <span>
+            <span className="activity-song">{activity.songTitle}</span> terminou
+          </span>
+        )
       case 'PLAYBACK_SKIPPED':
-        return `${song} foi pulada`
+        return <span>A música anterior foi pulada</span>
       default:
-        return activity.type
+        return <span>{activity.type}</span>
     }
   }
 
   return (
-    <div className="container stack">
-      <header className="row">
-        <button className="btn btn-sm" onClick={() => navigate('/')}>
-          ← Início
+    <div className="container room-page stack">
+      <header className="room-header">
+        <Brand />
+        <div className="grow room-header-title">
+          <span className="room-header-name">{state?.name ?? `Sala ${codeRef.current}`}</span>
+          <span className="room-header-code">{codeRef.current}</span>
+        </div>
+        <button className="btn btn-sm btn-ghost" onClick={() => void openSummary()} disabled={!roomId}>
+          Resumo da sala
         </button>
-        <h2 style={{ margin: 0 }} className="grow">
-          {state?.name ?? `Sala ${codeRef.current}`}
-        </h2>
-        <button className="btn btn-sm" onClick={copyCode}>
+        <button className="btn btn-sm btn-ghost" onClick={() => setRenaming((v) => !v)}>
+          Renomear
+        </button>
+        <span className="badge badge--live">
+          <span className="live-dot" />
+          {state?.members.length ?? 0} {state?.members.length === 1 ? 'pessoa' : 'pessoas'}
+        </span>
+        <button className="btn btn-sm btn-ghost" onClick={copyCode}>
           {copied ? 'Copiado' : 'Copiar código'}
         </button>
-        <button className="btn btn-sm btn-danger" onClick={leave}>
+        <button className="btn btn-sm btn-ghost" onClick={leave}>
           Sair
         </button>
       </header>
 
+      {renaming && (
+        <div className="row">
+          <input
+            className="input grow"
+            placeholder="Nome da sala"
+            value={roomName}
+            maxLength={40}
+            onChange={(event) => setRoomName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                void renameRoom()
+              }
+            }}
+          />
+          <button className="btn btn-primary" onClick={renameRoom}>
+            Salvar
+          </button>
+        </div>
+      )}
+
       {error && (
         <Notice type="error" onClose={() => setError(null)}>
           {error}
-        </Notice>
-      )}
-
-      {successMessage && (
-        <Notice type="success" onClose={() => setSuccessMessage(null)}>
-          {successMessage}
         </Notice>
       )}
 
@@ -431,293 +566,328 @@ export function RoomPage() {
         </Notice>
       )}
 
+      {summaryOpen && (
+        <RoomSummaryDialog summary={summary} loading={summaryLoading} onClose={closeSummary} />
+      )}
+
       {!entered && !error && <div className="muted">Entrando na sala…</div>}
 
       {entered && state && (
-        <>
-          <section className="card stack">
-            <h3 style={{ margin: 0 }}>Nome da sala</h3>
+        <div className="room-layout">
+          <div className={`panel search-panel ${tabClass('buscar')}`}>
+            <h3 className="panel-title">Buscar</h3>
             <div className="row">
               <input
                 className="input grow"
-                placeholder="Nome da sala"
-                value={roomName}
-                maxLength={40}
-                onChange={(event) => setRoomName(event.target.value)}
+                placeholder="Buscar uma música..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
-                    void renameRoom()
+                    void search()
                   }
                 }}
               />
-              <button className="btn" onClick={renameRoom}>
-                Renomear
+              <button className="btn" onClick={search} disabled={searching}>
+                {searching ? '…' : 'Buscar'}
               </button>
             </div>
-          </section>
 
-          <section className="card stack">
-            <h3 style={{ margin: 0 }}>Na sala</h3>
-            <div className="list">
-              {state.members.length === 0 && <div className="muted">Ninguém na sala.</div>}
-              {state.members.map((member) => (
-                <div className="list-item" key={member.userId}>
-                  <div className="avatar">
-                    {member.avatarUrl ? (
-                      <img src={member.avatarUrl} alt={member.displayName} />
+            {showResults && (
+              <button className="btn btn-sm btn-ghost" onClick={clearSearch}>
+                Limpar busca
+              </button>
+            )}
+
+            {searching && <div className="muted">Buscando…</div>}
+
+            {showResults && (
+              <div className="list scroll-area" style={{ maxHeight: 520 }}>
+                {results.map((item) => (
+                  <div className="list-item" key={item.videoId}>
+                    {item.thumbnailUrl ? (
+                      <img className="search-thumb" src={item.thumbnailUrl} alt="" />
                     ) : (
-                      (member.displayName?.[0] ?? '?')
+                      <span className="search-thumb" aria-hidden="true" />
                     )}
-                  </div>
-                  <div className="grow">
-                    <div className="ellipsis">{member.displayName}</div>
-                    <div className="muted" style={{ fontSize: '0.85rem' }}>
-                      {member.waitingCount}/8 músicas na fila
+                    <div className="queue-info">
+                      <div className="search-title">{item.title}</div>
+                      <div className="muted" style={{ fontSize: '0.8rem' }}>
+                        {item.channelTitle}
+                        {item.channelTitle && item.duration ? ' · ' : ''}
+                        {item.duration ? formatDuration(item.duration) : ''}
+                      </div>
                     </div>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      aria-label="Adicionar à fila"
+                      onClick={() => void addSong(item.videoId)}
+                    >
+                      +
+                    </button>
                   </div>
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            )}
+          </div>
 
-          <div className="grid-2">
-            <section className="card stack">
-              <h3 style={{ margin: 0 }}>Reprodução</h3>
-
-              <div className="row">
-                <span className="muted">Modo:</span>
+          <div className={`panel player-panel ${tabClass('sala')}`}>
+            <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <div className="mode-switch">
                 <button
-                  className="btn btn-sm"
+                  className={!isCaixaMode ? 'mode-active' : ''}
                   onClick={() => void changeMode('TODOS_OS_NAVEGADORES')}
-                  disabled={state.playbackMode === 'TODOS_OS_NAVEGADORES'}
                 >
-                  Todos os navegadores
+                  Todos os dispositivos
                 </button>
                 <button
-                  className="btn btn-sm"
+                  className={isCaixaMode ? 'mode-active' : ''}
                   onClick={() => void changeMode('CAIXA_DE_MUSICA')}
-                  disabled={state.playbackMode === 'CAIXA_DE_MUSICA'}
                 >
                   Caixa de música
                 </button>
               </div>
+            </div>
 
-              {state.playbackMode === 'CAIXA_DE_MUSICA' && (
-                <div className="card stack" style={{ background: 'var(--panel-2)' }}>
-                  <div className="row">
-                    <span className="muted">
-                      {caixaAssigned ? 'Player assumido' : 'Nenhum player assumido'}
-                    </span>
-                    {caixaAssigned && isPlayer ? (
-                      <button className="btn btn-sm btn-danger" onClick={releasePlayer}>
-                        Liberar player
-                      </button>
-                    ) : !caixaAssigned ? (
-                      <button className="btn btn-sm" onClick={claimPlayer}>
-                        Assumir player
-                      </button>
-                    ) : (
-                      <span className="muted">Já existe uma caixa nesta sala</span>
-                    )}
-                  </div>
+            {isCaixaMode && (
+              <div className="stack" style={{ gap: 6 }}>
+                <div className="caixa-state">
+                  {caixaAssigned
+                    ? isPlayer
+                      ? 'Você está reproduzindo.'
+                      : 'A caixa está reproduzindo em outro dispositivo.'
+                    : 'Nenhum dispositivo assumiu a reprodução.'}
                 </div>
-              )}
+                {caixaAssigned && isPlayer ? (
+                  <button className="btn btn-sm btn-danger" onClick={releasePlayer}>
+                    Liberar caixa
+                  </button>
+                ) : !caixaAssigned ? (
+                  <button className="btn btn-sm" onClick={claimPlayer}>
+                    Assumir como caixa
+                  </button>
+                ) : null}
+              </div>
+            )}
 
-              {currentPlayback && (
-                <div className="stack">
-                  <div className="row">
-                    <img
-                      className="thumb"
-                      src={currentPlayback.song.thumbnailUrl}
-                      alt={currentPlayback.song.title}
-                      style={{ width: 96, height: 54, borderRadius: 6, objectFit: 'cover' }}
-                    />
-                    <div className="grow">
-                      <div className="ellipsis">{currentPlayback.song.title}</div>
-                      <div className="muted" style={{ fontSize: '0.85rem' }}>
-                        {currentPlayback.addedByDisplayName
-                          ? `Adicionada por ${currentPlayback.addedByDisplayName} · `
-                          : ''}
-                        {formatDuration(currentPlayback.song.duration)}
-                        {isPaused ? ' · pausado' : ''}
-                      </div>
-                    </div>
-                  </div>
+            {currentPlayback ? (
+              <div className="stack" style={{ alignItems: 'stretch' }}>
+                <div className="player-cover">
+                  <Equalizer active={!isPaused} />
+                </div>
 
-                  <div
-                    className="progress"
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={durationSeconds ?? 0}
-                    aria-valuenow={displayedSeconds}
-                    aria-label="Progresso da música"
-                  >
-                    <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
-                  </div>
-                  <div className="row" style={{ justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                    <span className="muted">{formatSeconds(displayedSeconds)}</span>
-                    <span className="muted">{formatDuration(currentPlayback.song.duration)}</span>
-                  </div>
-
-                  {isPlayer ? (
-                    <>
-                      <YouTubePlayer
-                        videoId={currentPlayback.song.youtubeVideoId}
-                        playing={!isPaused}
-                        startAtSeconds={seekSeconds}
-                        syncRequest={syncRequest}
-                        volume={volume}
-                        muted={muted}
-                        onEnded={handleEnded}
-                        onError={handlePlaybackError}
-                      />
-                      <div className="row">
-                        <button className="btn" onClick={() => void (isPaused ? resume() : pause())}>
-                          {isPaused ? 'Retomar' : 'Pausar'}
-                        </button>
-                        <button className="btn btn-sm" onClick={() => setMuted((m) => !m)}>
-                          {muted ? 'Ativar som' : 'Silenciar'}
-                        </button>
-                        <input
-                          className="grow"
-                          type="range"
-                          min={0}
-                          max={100}
-                          value={muted ? 0 : volume}
-                          onChange={(event) => {
-                            const value = Number(event.target.value)
-                            setVolume(value)
-                            if (value > 0) {
-                              setMuted(false)
-                            }
-                          }}
-                        />
-                      </div>
-                    </>
-                  ) : isCaixaMode && !caixaAssigned ? (
-                    <div className="muted">
-                      Nenhum dispositivo reproduzindo. Assuma a caixa para tocar o áudio.
-                    </div>
-                  ) : (
-                    <div className="muted">Aguarde — somente a caixa desta sala reproduz o áudio.</div>
+                <div className="now-playing">
+                  <span className="track-label">Tocando agora</span>
+                  <span className="track-title">{currentPlayback.song.title}</span>
+                  {currentPlayback.addedByDisplayName && (
+                    <span className="track-sub">Adicionada por {currentPlayback.addedByDisplayName}</span>
                   )}
                 </div>
-              )}
 
-              {!currentPlayback && (
-                <div className="muted">
-                  {isPlayer ? 'Nada tocando no momento. Adicione músicas à fila.' : 'Nada tocando no momento.'}
+                <div
+                  className="progress"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={durationSeconds ?? 0}
+                  aria-valuenow={displayedSeconds}
+                  aria-label="Progresso da música"
+                >
+                  <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
                 </div>
-              )}
+                <div className="progress-times">
+                  <span>{formatSeconds(displayedSeconds)}</span>
+                  <span>{currentPlayback.song.duration ? formatDuration(currentPlayback.song.duration) : ''}</span>
+                </div>
 
-              {currentPlayback && state.skipVote && (
-                <div className="card stack" style={{ background: 'var(--panel-2)' }}>
-                  <div className="row">
-                    <span className="grow">
-                      Pular: {state.skipVote.votes}/{state.skipVote.requiredVotes} votos
-                    </span>
-                    <button
-                      className="btn btn-sm"
-                      onClick={voteSkip}
-                      disabled={state.skipVote.currentUserVoted}
-                    >
-                      {state.skipVote.currentUserVoted ? 'Voto registrado' : 'Votar para pular'}
+                {isPlayer ? (
+                  <div className="controls">
+                    <YouTubePlayer
+                      videoId={currentPlayback.song.youtubeVideoId}
+                      playing={!isPaused}
+                      startAtSeconds={seekSeconds}
+                      syncRequest={syncRequest}
+                      volume={volume}
+                      muted={muted}
+                      onEnded={handleEnded}
+                      onError={handlePlaybackError}
+                    />
+                    <button className="btn btn-primary" onClick={() => void (isPaused ? resume() : pause())}>
+                      {isPaused ? 'Retomar' : 'Pausar'}
                     </button>
+                    <button className="btn btn-ghost" onClick={() => setMuted((m) => !m)}>
+                      {muted ? 'Ativar som' : 'Silenciar'}
+                    </button>
+                    <input
+                      className="volume-slider"
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={muted ? 0 : volume}
+                      aria-label="Volume"
+                      onChange={(event) => {
+                        const value = Number(event.target.value)
+                        setVolume(value)
+                        if (value > 0) {
+                          setMuted(false)
+                        }
+                      }}
+                    />
                   </div>
-                </div>
-              )}
-            </section>
-
-            <section className="card stack">
-              <h3 style={{ margin: 0 }}>Fila</h3>
-
-              <div className="row">
-                <input
-                  className="input grow"
-                  placeholder="Buscar música no YouTube…"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      void search()
-                    }
-                  }}
-                />
-                <button className="btn" onClick={search} disabled={searching}>
-                  {searching ? '…' : 'Buscar'}
-                </button>
+                ) : isCaixaMode && !caixaAssigned ? (
+                  <div className="muted">Nenhum dispositivo reproduzindo. Assuma a caixa para tocar o áudio.</div>
+                ) : (
+                  <div className="muted">Aguarde — somente a caixa desta sala reproduz o áudio.</div>
+                )}
               </div>
+            ) : (
+              <div className="muted">Nada tocando no momento.</div>
+            )}
 
-              {results.length > 0 && (
-                <div className="list">
-                  {results.map((item) => (
-                    <div className="list-item" key={item.videoId}>
-                      <div className="grow ellipsis">{item.title}</div>
-                      <button className="btn btn-sm" onClick={() => void addSong(item.videoId)}>
-                        Adicionar
-                      </button>
-                    </div>
-                  ))}
+            {currentPlayback && state.skipVote && (
+              <div className="skip-area">
+                <div className="skip-title">Pular esta música</div>
+                <div className="vote-bar">
+                  <div className="vote-fill" style={{ width: `${votePercent}%` }} />
                 </div>
-              )}
-
-              <div className="list">
-                {state.queue.length === 0 && <div className="muted">A fila está vazia.</div>}
-                {state.queue.map((item) => (
-                  <div className="list-item" key={item.queueItemId}>
-                    <img className="thumb" src={item.song.thumbnailUrl} alt={item.song.title} />
-                    <div className="grow">
-                      <div className="ellipsis">{item.song.title}</div>
-                      <div className="muted" style={{ fontSize: '0.85rem' }}>
-                        #{item.position} · {formatDuration(item.song.duration)}
-                        {item.status === 'PLAYING' ? ' · tocando' : ''}
-                      </div>
-                    </div>
-                    {item.status === 'WAITING' && (
-                      <button
-                        className="btn btn-sm btn-danger"
-                        onClick={() => void removeItem(item.queueItemId)}
-                      >
-                        Remover
-                      </button>
-                    )}
-                  </div>
-                ))}
+                <div className="row" style={{ justifyContent: 'space-between' }}>
+                  <span className="muted">
+                    {state.skipVote.votes} de {state.skipVote.requiredVotes} votos necessários
+                  </span>
+                  <button
+                    className="btn"
+                    onClick={voteSkip}
+                    disabled={state.skipVote.currentUserVoted}
+                  >
+                    {state.skipVote.currentUserVoted ? 'Voto registrado' : 'Votar para pular'}
+                  </button>
+                </div>
               </div>
-            </section>
+            )}
           </div>
 
-          <section className="card stack">
-            <h3 style={{ margin: 0 }}>Histórico</h3>
-            <div className="list">
+          <div className={`panel people-panel ${tabClass('pessoas')}`}>
+            <h3 className="panel-title">Na sala</h3>
+            {state.members.length === 0 && <div className="muted">Ninguém na sala.</div>}
+            {state.members.map((member) => (
+              <div className="participant" key={member.userId}>
+                <Avatar
+                  userId={member.userId}
+                  displayName={member.displayName}
+                  avatarUrl={member.avatarUrl}
+                  size="sm"
+                />
+                <div className="participant-name">{member.displayName}</div>
+                <span className="participant-count">{member.waitingCount}/8</span>
+              </div>
+            ))}
+          </div>
+
+          <div className={`panel activity-panel ${tabClass('atividade')}`}>
+            <h3 className="panel-title">Acontecendo agora</h3>
+            <div className="scroll-area" style={{ maxHeight: 520 }}>
+              {activities.length === 0 && <div className="muted">Nenhuma atividade ainda.</div>}
+              {activities.map((activity) => (
+                <div className="activity-item" key={activity.id}>
+                  <span className="activity-icon" aria-hidden="true">
+                    {activityGlyph(activity.type)}
+                  </span>
+                  <div className="activity-body">
+                    <div className="activity-line">{activityLine(activity)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className={`panel history-panel ${tabClass('atividade')}`}>
+            <h3 className="panel-title">Histórico</h3>
+            <div className="list scroll-area" style={{ maxHeight: 400 }}>
               {history.length === 0 && <div className="muted">Nenhuma reprodução ainda.</div>}
               {history.map((item) => (
-                <div className="list-item" key={item.playbackId}>
-                  <img className="thumb" src={item.song.thumbnailUrl} alt={item.song.title} />
-                  <div className="grow">
+                <div className="queue-item" key={item.playbackId}>
+                  {item.addedBy && (
+                    <Avatar
+                      userId={item.addedBy.id}
+                      displayName={item.addedBy.name}
+                      avatarUrl={item.addedBy.avatarUrl}
+                      size="sm"
+                    />
+                  )}
+                  {item.song.thumbnailUrl && (
+                    <img className="queue-thumb" src={item.song.thumbnailUrl} alt="" />
+                  )}
+                  <div className="queue-info">
                     <div className="ellipsis">{item.song.title}</div>
-                    <div className="muted" style={{ fontSize: '0.85rem' }}>
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>
                       {item.status} · {formatDuration(item.song.duration)}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          </section>
+          </div>
 
-          <section className="card stack">
-            <h3 style={{ margin: 0 }}>Atividade da sala</h3>
-            <div className="list">
-              {activities.length === 0 && <div className="muted">Nenhuma atividade ainda.</div>}
-              {activities.map((activity) => (
-                <div className="list-item" key={activity.id}>
-                  <div className="grow ellipsis">{activityText(activity)}</div>
+          <div className={`panel queue-panel ${tabClass('sala')}`}>
+            <h3 className="panel-title">
+              Próximas <span className="muted">· {state.queue.length}</span>
+            </h3>
+            <div className="list scroll-area" style={{ maxHeight: 400 }}>
+              {state.queue.length === 0 && <div className="muted">A fila está vazia.</div>}
+              {state.queue.map((item) => (
+                <div className="queue-item" key={item.queueItemId}>
+                  {item.song.thumbnailUrl && (
+                    <img className="queue-thumb" src={item.song.thumbnailUrl} alt={item.song.title} />
+                  )}
+                  <div className="queue-info">
+                    <div className="ellipsis">{item.song.title}</div>
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>
+                      {formatDuration(item.song.duration)}
+                      {item.status === 'PLAYING' ? ' · tocando' : ''}
+                      {item.source === 'AUTO_DJ' && (
+                        <span className="tag-autodj"> Auto-DJ</span>
+                      )}
+                    </div>
+                  </div>
+                  {item.status === 'WAITING' && (
+                    <button className="btn btn-sm btn-ghost" onClick={() => void removeItem(item.queueItemId)}>
+                      Remover
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
-          </section>
-        </>
+          </div>
+        </div>
       )}
+
+      <nav className="mobile-tabbar" aria-label="Navegação da sala">
+        <div className="mobile-tabbar-inner">
+          <button
+            className={`mobile-tab${mobileTab === 'sala' ? ' mobile-tab--active' : ''}`}
+            onClick={() => setMobileTab('sala')}
+          >
+            Sala
+          </button>
+          <button
+            className={`mobile-tab${mobileTab === 'buscar' ? ' mobile-tab--active' : ''}`}
+            onClick={() => setMobileTab('buscar')}
+          >
+            Buscar
+          </button>
+          <button
+            className={`mobile-tab${mobileTab === 'pessoas' ? ' mobile-tab--active' : ''}`}
+            onClick={() => setMobileTab('pessoas')}
+          >
+            Pessoas
+          </button>
+          <button
+            className={`mobile-tab${mobileTab === 'atividade' ? ' mobile-tab--active' : ''}`}
+            onClick={() => setMobileTab('atividade')}
+          >
+            Atividade
+          </button>
+        </div>
+      </nav>
     </div>
   )
 }

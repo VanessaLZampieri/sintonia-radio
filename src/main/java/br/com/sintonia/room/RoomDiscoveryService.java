@@ -31,12 +31,14 @@ public class RoomDiscoveryService {
     public List<ActiveRoomResponse> listActiveRooms() {
         return roomRepository.findActiveRoomsWithPresentMembers(RoomStatus.ACTIVE).stream()
                 .map(this::toActiveRoomResponse)
+                .filter(room -> room.participantCount() > 0)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public List<UserRoomResponse> listUserRooms(Long userId) {
-        List<RoomMember> members = roomMemberRepository.findByUserIdOrderByJoinedAtDesc(userId);
+        List<RoomMember> members = roomMemberRepository
+                .findByUserIdAndRoomStatusOrderByJoinedAtDesc(userId, RoomStatus.ACTIVE);
         Map<Long, Room> distinctRooms = new LinkedHashMap<>();
         for (RoomMember member : members) {
             distinctRooms.putIfAbsent(member.getRoom().getId(), member.getRoom());

@@ -32,13 +32,14 @@ class SongControllerTest {
     @Test
     void searchesSongs() throws Exception {
         when(youTubeSongService.search("Nando Reis", 10)).thenReturn(List.of(
-                new SongSearchItemResponse("abc123", "Title A", "Channel", "PT4M13S")));
+                new SongSearchItemResponse("abc123", "Title A", "Channel", "https://img/1.jpg", "PT4M13S")));
 
         mockMvc.perform(get("/api/songs/search").param("q", "Nando Reis"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].videoId").value("abc123"))
                 .andExpect(jsonPath("$[0].title").value("Title A"))
                 .andExpect(jsonPath("$[0].channelTitle").value("Channel"))
+                .andExpect(jsonPath("$[0].thumbnailUrl").value("https://img/1.jpg"))
                 .andExpect(jsonPath("$[0].duration").value("PT4M13S"));
 
         verify(youTubeSongService).search("Nando Reis", 10);

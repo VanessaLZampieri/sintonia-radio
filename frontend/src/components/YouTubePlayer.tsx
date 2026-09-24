@@ -144,5 +144,9 @@ export function YouTubePlayer({
     applyDesired()
   }, [videoId, playing, startAtSeconds, syncRequest, volume, muted, applyDesired])
 
-  return <div ref={containerRef} className="youtube-player" />
+  return (
+    <div className="youtube-player">
+      <div ref={containerRef} />
+    </div>
+  )
 }

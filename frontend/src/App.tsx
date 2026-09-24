@@ -3,6 +3,7 @@ import { useAuth } from './auth'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { RoomPage } from './pages/RoomPage'
+import { RouteNotificationCleanup } from './components/RouteNotificationCleanup'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { me, loading } = useAuth()
@@ -21,25 +22,28 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 
 export function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/"
-        element={
-          <RequireAuth>
-            <HomePage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/room/:code"
-        element={
-          <RequireAuth>
-            <RoomPage />
-          </RequireAuth>
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <RouteNotificationCleanup />
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/"
+          element={
+            <RequireAuth>
+              <HomePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/room/:code"
+          element={
+            <RequireAuth>
+              <RoomPage />
+            </RequireAuth>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   )
 }

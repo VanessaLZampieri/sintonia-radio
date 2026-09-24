@@ -48,6 +48,7 @@ class RoomServiceTest {
         assertThat(room.getName()).isEqualTo("Faxina com sofrimento");
         assertThat(room.getStatus()).isEqualTo(RoomStatus.ACTIVE);
         assertThat(room.getCode()).hasSize(8);
+        assertThat(room.getEmptySince()).isNotNull();
     }
 
     @Test

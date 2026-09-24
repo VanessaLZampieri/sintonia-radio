@@ -12,6 +12,7 @@ import br.com.sintonia.room.UserNotInRoomException;
 import br.com.sintonia.song.Song;
 import br.com.sintonia.song.SongNotFoundException;
 import br.com.sintonia.song.SongRepository;
+import br.com.sintonia.song.SongDurationPolicy;
 import br.com.sintonia.queue.QueueItemNotFoundException;
 import br.com.sintonia.user.User;
 import br.com.sintonia.user.UserRepository;
@@ -146,6 +147,7 @@ public class QueueService {
 
         Song song = songRepository.findById(songId)
                 .orElseThrow(() -> new SongNotFoundException("Música não encontrada."));
+        SongDurationPolicy.requireAllowed(song.getDuration());
 
         if (queueItemRepository.existsByRoomIdAndSongIdAndStatusIn(
                 roomId, songId, List.of(QueueItemStatus.WAITING, QueueItemStatus.PLAYING))) {

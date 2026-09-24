@@ -31,6 +31,7 @@ public class YouTubeSongService {
                         details.videoId(),
                         details.title(),
                         details.channelTitle(),
+                        details.thumbnailUrl(),
                         details.duration() == null ? null : details.duration().toString()))
                 .toList();
     }
@@ -57,7 +58,8 @@ public class YouTubeSongService {
                 continue;
             }
             YouTubeVideoDetails videoDetails = details.get(videoId);
-            if (videoDetails == null || !videoDetails.embeddable() || videoDetails.live()) {
+            if (videoDetails == null || !videoDetails.embeddable() || videoDetails.live()
+                    || !SongDurationPolicy.isAllowed(videoDetails.duration())) {
                 continue;
             }
             results.add(videoDetails);
@@ -68,14 +70,18 @@ public class YouTubeSongService {
     public Optional<Song> select(String videoId) {
         Optional<Song> existing = songService.findByYoutubeVideoId(videoId);
         if (existing.isPresent()) {
+            SongDurationPolicy.requireAllowed(existing.get().getDuration());
             return existing;
         }
         return youTubeClient.getVideoDetails(videoId)
-                .map(details -> songService.findOrCreate(
-                        details.videoId(),
-                        details.title(),
-                        details.thumbnailUrl(),
-                        details.duration(),
-                        details.channelTitle()));
+                .map(details -> {
+                    SongDurationPolicy.requireAllowed(details.duration());
+                    return songService.findOrCreate(
+                            details.videoId(),
+                            details.title(),
+                            details.thumbnailUrl(),
+                            details.duration(),
+                            details.channelTitle());
+                });
     }
 }

@@ -24,7 +24,7 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     List<Long> findExpiredCandidateIds(@Param("status") RoomStatus status, @Param("threshold") Instant threshold);
 
     @Query("SELECT r FROM Room r WHERE r.status = :status "
-            + "AND EXISTS (SELECT m FROM RoomMember m WHERE m.room = r AND m.leftAt IS NULL) "
+            + "AND EXISTS (SELECT p FROM RoomPresence p WHERE p.room = r AND p.expiresAt > CURRENT_TIMESTAMP) "
             + "ORDER BY r.createdAt DESC")
     List<Room> findActiveRoomsWithPresentMembers(@Param("status") RoomStatus status);
 

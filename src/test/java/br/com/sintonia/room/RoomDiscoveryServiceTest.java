@@ -96,7 +96,7 @@ class RoomDiscoveryServiceTest {
         Room roomB = room(2L, "Sala B");
         User user = user(USER_ID, "Ana Souza", null);
 
-        when(roomMemberRepository.findByUserIdOrderByJoinedAtDesc(USER_ID))
+        when(roomMemberRepository.findByUserIdAndRoomStatusOrderByJoinedAtDesc(USER_ID, RoomStatus.ACTIVE))
                 .thenReturn(List.of(
                         new RoomMember(roomA, user),
                         new RoomMember(roomB, user),
@@ -112,26 +112,19 @@ class RoomDiscoveryServiceTest {
     }
 
     @Test
-    void listUserRoomsClosedRoomCannotEnter() {
-        Room closed = new Room("Sala Fechada", "FECHADO1", RoomStatus.CLOSED);
-        ReflectionTestUtils.setField(closed, "id", 5L);
-        User user = user(USER_ID, "Ana Souza", null);
-
-        when(roomMemberRepository.findByUserIdOrderByJoinedAtDesc(USER_ID))
-                .thenReturn(List.of(new RoomMember(closed, user)));
-        when(roomMemberRepository.countByRoomAndLeftAtIsNull(closed)).thenReturn(0L);
+    void listUserRoomsDoesNotReturnClosedRooms() {
+        when(roomMemberRepository.findByUserIdAndRoomStatusOrderByJoinedAtDesc(USER_ID, RoomStatus.ACTIVE))
+                .thenReturn(List.of());
 
         List<UserRoomResponse> result = roomDiscoveryService.listUserRooms(USER_ID);
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).status()).isEqualTo(RoomStatus.CLOSED);
-        assertThat(result.get(0).canEnter()).isFalse();
+        assertThat(result).isEmpty();
     }
 
     @Test
     void listUserRoomsActiveNotFullCanEnter() {
         User user = user(USER_ID, "Ana Souza", null);
-        when(roomMemberRepository.findByUserIdOrderByJoinedAtDesc(USER_ID))
+        when(roomMemberRepository.findByUserIdAndRoomStatusOrderByJoinedAtDesc(USER_ID, RoomStatus.ACTIVE))
                 .thenReturn(List.of(new RoomMember(room, user)));
         when(roomMemberRepository.countByRoomAndLeftAtIsNull(room)).thenReturn(3L);
 
@@ -143,7 +136,7 @@ class RoomDiscoveryServiceTest {
     @Test
     void listUserRoomsActiveFullCannotEnter() {
         User user = user(USER_ID, "Ana Souza", null);
-        when(roomMemberRepository.findByUserIdOrderByJoinedAtDesc(USER_ID))
+        when(roomMemberRepository.findByUserIdAndRoomStatusOrderByJoinedAtDesc(USER_ID, RoomStatus.ACTIVE))
                 .thenReturn(List.of(new RoomMember(room, user)));
         when(roomMemberRepository.countByRoomAndLeftAtIsNull(room)).thenReturn(15L);
 

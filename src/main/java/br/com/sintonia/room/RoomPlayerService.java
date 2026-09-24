@@ -10,22 +10,23 @@ import br.com.sintonia.websocket.RoomEventType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
 public class RoomPlayerService {
 
     private final RoomRepository roomRepository;
-    private final RoomMemberRepository roomMemberRepository;
+    private final RoomPresenceRepository roomPresenceRepository;
     private final UserRepository userRepository;
     private final RoomEventPublisher roomEventPublisher;
 
     public RoomPlayerService(RoomRepository roomRepository,
-                             RoomMemberRepository roomMemberRepository,
+                             RoomPresenceRepository roomPresenceRepository,
                              UserRepository userRepository,
                              RoomEventPublisher roomEventPublisher) {
         this.roomRepository = roomRepository;
-        this.roomMemberRepository = roomMemberRepository;
+        this.roomPresenceRepository = roomPresenceRepository;
         this.userRepository = userRepository;
         this.roomEventPublisher = roomEventPublisher;
     }
@@ -60,7 +61,8 @@ public class RoomPlayerService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("Usuário não encontrado."));
 
-        if (!roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(roomId, userId)) {
+        if (!roomPresenceRepository.existsByRoomIdAndUserIdAndClientSessionIdAndExpiresAtAfter(
+                roomId, userId, clientSessionId, Instant.now())) {
             throw new UserNotInRoomException("Usuário não está na sala.");
         }
 
@@ -119,6 +121,30 @@ public class RoomPlayerService {
                                 new PlayerChangedEventPayload(null, null)));
             }
         }
+    }
+
+    @Transactional
+    public void releaseIfClaimed(Long roomId, String clientSessionId) {
+        Room room = roomRepository.findByIdForUpdate(roomId).orElse(null);
+        if (room == null || !clientSessionId.equals(room.getPlayerClientSessionId())) {
+            return;
+        }
+        room.release();
+        roomEventPublisher.publish(room.getCode(),
+                new RoomEvent(RoomEventType.PLAYER_CHANGED, roomId,
+                        new PlayerChangedEventPayload(null, null)));
+    }
+
+    @Transactional
+    public void releaseIfClaimedByUser(Long roomId, Long userId) {
+        Room room = roomRepository.findByIdForUpdate(roomId).orElse(null);
+        if (room == null || room.getPlayerUser() == null || !userId.equals(room.getPlayerUser().getId())) {
+            return;
+        }
+        room.release();
+        roomEventPublisher.publish(room.getCode(),
+                new RoomEvent(RoomEventType.PLAYER_CHANGED, roomId,
+                        new PlayerChangedEventPayload(null, null)));
     }
 
     private void validateClientSessionId(String clientSessionId) {

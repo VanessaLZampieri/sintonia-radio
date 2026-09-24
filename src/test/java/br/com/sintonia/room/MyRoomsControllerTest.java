@@ -46,16 +46,14 @@ class MyRoomsControllerTest {
     @Test
     void listsMyRooms() throws Exception {
         when(roomDiscoveryService.listUserRooms(eq(USER_ID))).thenReturn(List.of(
-                new UserRoomResponse(1L, "Sala A", "CODE1", RoomStatus.ACTIVE, true, 3L),
-                new UserRoomResponse(2L, "Sala B", "CODE2", RoomStatus.CLOSED, false, 0L)));
+                new UserRoomResponse(1L, "Sala A", "CODE1", RoomStatus.ACTIVE, true, 3L)));
 
         mockMvc.perform(get("/api/me/rooms").with(auth(USER_ID)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].roomId").value(1))
+                .andExpect(jsonPath("$[0].status").value("ACTIVE"))
                 .andExpect(jsonPath("$[0].canEnter").value(true))
-                .andExpect(jsonPath("$[1].roomId").value(2))
-                .andExpect(jsonPath("$[1].status").value("CLOSED"))
-                .andExpect(jsonPath("$[1].canEnter").value(false));
+                .andExpect(jsonPath("$.length()").value(1));
     }
 
     private RequestPostProcessor auth(Long userId) {

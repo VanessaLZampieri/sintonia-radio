@@ -11,7 +11,8 @@ public class PlayerDisconnectListener {
     private final ClientSessionRegistry clientSessionRegistry;
     private final RoomPlayerService roomPlayerService;
 
-    public PlayerDisconnectListener(ClientSessionRegistry clientSessionRegistry, RoomPlayerService roomPlayerService) {
+    public PlayerDisconnectListener(ClientSessionRegistry clientSessionRegistry,
+                                    RoomPlayerService roomPlayerService) {
         this.clientSessionRegistry = clientSessionRegistry;
         this.roomPlayerService = roomPlayerService;
     }
