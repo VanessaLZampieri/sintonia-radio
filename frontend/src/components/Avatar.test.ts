@@ -16,11 +16,12 @@ describe('avatarVariant', () => {
     expect(avatarVariant(4821)).toBe(avatarVariant(4821))
   })
 
-  it('distribui IDs estáveis pelas oito variantes disponíveis', () => {
+  it('permite que usuários diferentes recebam variantes diferentes', () => {
+    expect(avatarVariant(1)).not.toBe(avatarVariant(2))
     expect(new Set(Array.from({ length: 8 }, (_, id) => avatarVariant(id))).size).toBe(8)
   })
 
-  it('usa o avatar Sintonia quando a foto externa falha', () => {
+  it('ignora a foto Google e sempre renderiza o SVG Sintonia', () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
     const root = createRoot(host)
@@ -32,24 +33,14 @@ describe('avatarVariant', () => {
         avatarUrl: 'https://invalid.example/avatar.jpg',
       }))
     })
-    act(() => {
-      host.querySelector('img')?.dispatchEvent(new Event('error'))
-    })
 
     expect(host.querySelector('.avatar-wave')).not.toBeNull()
     expect(host.querySelector('img')).toBeNull()
-    act(() => {
-      root.render(createElement(Avatar, {
-        userId: 7,
-        displayName: 'Vanessa',
-        avatarUrl: 'https://valid.example/new-avatar.jpg',
-      }))
-    })
-    expect(host.querySelector('img')?.getAttribute('src')).toBe('https://valid.example/new-avatar.jpg')
+    expect(host.querySelector('.avatar--variant-7')).not.toBeNull()
     act(() => root.unmount())
   })
 
-  it('usa o avatar Sintonia quando não existe foto', () => {
+  it('não renderiza foto nem inicial quando não existe avatar externo', () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
     const root = createRoot(host)

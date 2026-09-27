@@ -513,15 +513,20 @@ export function RoomPage() {
       <header className="room-header">
         <Brand />
         <div className="grow room-header-title">
-          <span className="room-header-name">{state?.name ?? `Sala ${codeRef.current}`}</span>
+          <div className="room-title-line">
+            <span className="room-header-name">{state?.name ?? `Sala ${codeRef.current}`}</span>
+            <button
+              className="room-rename-button"
+              type="button"
+              title="Renomear sala"
+              aria-label="Renomear sala"
+              onClick={() => setRenaming((v) => !v)}
+            >
+              ✎
+            </button>
+          </div>
           <span className="room-header-code">{codeRef.current}</span>
         </div>
-        <button className="btn btn-sm btn-ghost" onClick={() => void openSummary()} disabled={!roomId}>
-          Resumo da sala
-        </button>
-        <button className="btn btn-sm btn-ghost" onClick={() => setRenaming((v) => !v)}>
-          Renomear
-        </button>
         <span className="badge badge--live">
           <span className="live-dot" />
           {state?.members.length ?? 0} {state?.members.length === 1 ? 'pessoa' : 'pessoas'}
@@ -783,11 +788,21 @@ export function RoomPage() {
           </div>
 
           <div className={`panel activity-panel ${tabClass('atividade')}`}>
-            <h3 className="panel-title">Acontecendo agora</h3>
+            <div className="panel-heading">
+              <h3 className="panel-title">Acontecendo agora</h3>
+              <button
+                className="summary-action"
+                type="button"
+                onClick={() => void openSummary()}
+                disabled={!roomId}
+              >
+                Resumo da sala
+              </button>
+            </div>
             <div className="scroll-area" style={{ maxHeight: 520 }}>
               {activities.length === 0 && <div className="muted">Nenhuma atividade ainda.</div>}
               {activities.map((activity) => (
-                <div className="activity-item" key={activity.id}>
+                <div className="activity-item" data-activity-type={activity.type} key={activity.id}>
                   <span className="activity-icon" aria-hidden="true">
                     {activityGlyph(activity.type)}
                   </span>
@@ -804,7 +819,7 @@ export function RoomPage() {
             <div className="list scroll-area" style={{ maxHeight: 400 }}>
               {history.length === 0 && <div className="muted">Nenhuma reprodução ainda.</div>}
               {history.map((item) => (
-                <div className="queue-item" key={item.playbackId}>
+                <div className="queue-item" data-status={item.status} key={item.playbackId}>
                   {item.addedBy && (
                     <Avatar
                       userId={item.addedBy.id}
@@ -834,7 +849,7 @@ export function RoomPage() {
             <div className="list scroll-area" style={{ maxHeight: 400 }}>
               {state.queue.length === 0 && <div className="muted">A fila está vazia.</div>}
               {state.queue.map((item) => (
-                <div className="queue-item" key={item.queueItemId}>
+                <div className="queue-item" data-status={item.status} key={item.queueItemId}>
                   {item.song.thumbnailUrl && (
                     <img className="queue-thumb" src={item.song.thumbnailUrl} alt={item.song.title} />
                   )}

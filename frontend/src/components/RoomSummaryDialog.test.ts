@@ -32,7 +32,7 @@ describe('RoomSummaryDialog', () => {
     })))
 
     expect(host.textContent).toContain('24')
-    expect(host.textContent).toContain('Tocadas pelo Auto-DJ')
+    expect(host.textContent).toContain('Auto-DJ tocou')
     expect(host.textContent).toContain('Vanessa')
     expect(host.textContent).toContain('Marina')
     expect(host.querySelectorAll('.contribution-row')).toHaveLength(2)

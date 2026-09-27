@@ -107,9 +107,13 @@ export function HomePage() {
   }
 
   const doLogout = async () => {
-    await logout()
-    await reload()
-    navigate('/login')
+    try {
+      await logout()
+      await reload()
+      navigate('/login', { replace: true })
+    } catch {
+      notifyFailure('Não foi possível sair. Tente novamente.')
+    }
   }
 
   const visibleMyRooms = myRooms.filter((room) => room.status === 'ACTIVE')

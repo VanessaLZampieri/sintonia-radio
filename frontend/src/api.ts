@@ -22,10 +22,14 @@ import { ApiError, extractErrorMessage } from './lib/errors'
 export { ApiError }
 
 export async function logout(): Promise<void> {
-  await fetch('/logout', {
-    method: 'POST',
+  // OAuth rotates the CSRF token; a safe backend request materializes the current cookie before logout.
+  await fetch('/api/me', {
+    method: 'GET',
     credentials: 'same-origin',
-    headers: csrfHeaders('POST', document.cookie),
+    headers: { Accept: 'application/json' },
+  })
+  await request<void>('/logout', {
+    method: 'POST',
   })
 }
 

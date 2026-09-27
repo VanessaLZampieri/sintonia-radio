@@ -52,7 +52,7 @@ export function RoomSummaryDialog({
         [summary.playbackCount, 'Músicas tocaram'],
         [summary.participantCount, 'Pessoas participaram'],
         [summary.skippedCount, 'Músicas puladas'],
-        [summary.autoDjPlaybackCount, 'Tocadas pelo Auto-DJ'],
+        [summary.autoDjPlaybackCount, 'Auto-DJ tocou'],
         [summary.skipVoteCount, 'Votos de skip'],
       ] as const
     : []

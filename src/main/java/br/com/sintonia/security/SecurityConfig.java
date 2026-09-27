@@ -68,6 +68,9 @@ public class SecurityConfig {
                                     }
                                 })
                         .userInfoEndpoint(userInfo -> userInfo.oidcUserService(sintoniaOAuth2UserService)))
+                .logout(logout -> logout
+                        .logoutSuccessHandler((request, response, authentication) ->
+                                response.setStatus(HttpServletResponse.SC_NO_CONTENT)))
                 .csrf(csrf -> csrf.spa())
                 .cors(cors -> {
                 });

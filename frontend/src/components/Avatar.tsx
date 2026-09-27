@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 export function avatarVariant(userId: number): number {
   return Math.abs(userId) % 8
@@ -81,7 +81,6 @@ function motif(variant: number): ReactNode {
 export function Avatar({
   userId,
   displayName,
-  avatarUrl,
   size,
 }: {
   userId: number
@@ -89,21 +88,13 @@ export function Avatar({
   avatarUrl: string | null
   size?: 'sm'
 }) {
-  const className = size === 'sm' ? 'avatar avatar--sm' : 'avatar'
-  const [failedUrl, setFailedUrl] = useState<string | null>(null)
-
-  if (avatarUrl && avatarUrl !== failedUrl) {
-    return (
-      <span className={className} aria-hidden="true">
-        <img src={avatarUrl} alt="" onError={() => setFailedUrl(avatarUrl)} />
-      </span>
-    )
-  }
+  const variant = avatarVariant(userId)
+  const className = `avatar avatar--variant-${variant}${size === 'sm' ? ' avatar--sm' : ''}`
 
   return (
     <span className={className} aria-hidden="true" title={displayName}>
       <svg className="avatar-wave" viewBox="0 0 32 32" focusable="false">
-        {motif(avatarVariant(userId))}
+        {motif(variant)}
       </svg>
     </span>
   )

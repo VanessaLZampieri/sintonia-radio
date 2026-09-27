@@ -18,6 +18,10 @@ describe('LogoMark', () => {
     act(() => root.render(createElement(Brand)))
 
     expect(host.querySelector('.brand-wave path')?.getAttribute('d')).toBe(APPROVED_WAVE_PATH)
+    expect(host.querySelector('.brand-wave path')?.getAttribute('stroke')).toMatch(/^url\(#.+\)$/)
+    expect(host.querySelectorAll('.brand-wave stop')).toHaveLength(4)
+    expect(host.querySelectorAll('.brand-wave stop')[2]?.getAttribute('offset')).toBe('0.68')
+    expect(host.querySelector('.brand-wave stop:last-child')?.getAttribute('stop-color')).toBe('var(--pink)')
     expect(host.querySelector('.brand-wave rect')).toBeNull()
     act(() => root.unmount())
   })
