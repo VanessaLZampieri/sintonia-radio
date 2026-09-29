@@ -145,7 +145,8 @@ class AutoDjServiceTest {
         stubSeed(song1);
         when(youTubeSongService.searchDetails(anyString(), anyInt()))
                 .thenReturn(List.of(details("song-a"), details("song-b")));
-        when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID))
+        when(queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                ROOM_ID, QueueItemStatus.WAITING))
                 .thenReturn(List.of(new QueueItem(room, songFor("song-a"), Instant.now(), 1)));
 
         QueueItem result = autoDjService.createNext(ROOM_ID).orElseThrow();
@@ -322,7 +323,8 @@ class AutoDjServiceTest {
                 ROOM_ID, PlaybackStatus.FINISHED)).thenReturn(Optional.empty());
         when(playbackRepository.findByQueueItemRoomIdAndStatus(ROOM_ID, PlaybackStatus.PLAYING))
                 .thenReturn(Optional.empty());
-        when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of());
+        when(queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                ROOM_ID, QueueItemStatus.WAITING)).thenReturn(List.of());
         when(playbackHistoryService.recentSongIds(ROOM_ID, 10)).thenReturn(List.of());
         when(songRepository.findAll()).thenReturn(List.of());
         when(queueItemRepository.findMaxPositionByRoomId(ROOM_ID)).thenReturn(0);

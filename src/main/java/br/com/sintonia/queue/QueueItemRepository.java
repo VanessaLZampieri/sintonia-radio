@@ -24,8 +24,10 @@ public interface QueueItemRepository extends JpaRepository<QueueItem, Long> {
     @Query("SELECT COALESCE(MAX(q.position), 0) FROM QueueItem q WHERE q.room.id = :roomId")
     Integer findMaxPositionByRoomId(@Param("roomId") Long roomId);
 
-    @Query("SELECT q FROM QueueItem q JOIN FETCH q.song JOIN FETCH q.user WHERE q.room.id = :roomId ORDER BY q.position ASC, q.id ASC")
-    List<QueueItem> findAllByRoomIdOrderByPositionAscIdAsc(@Param("roomId") Long roomId);
+    @Query("SELECT q FROM QueueItem q JOIN FETCH q.song LEFT JOIN FETCH q.user "
+            + "WHERE q.room.id = :roomId AND q.status = :status ORDER BY q.position ASC, q.id ASC")
+    List<QueueItem> findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+            @Param("roomId") Long roomId, @Param("status") QueueItemStatus status);
 
     Optional<QueueItem> findByIdAndRoomId(Long id, Long roomId);
 

@@ -2,6 +2,7 @@ package br.com.sintonia.queue;
 
 import br.com.sintonia.exception.GlobalExceptionHandler;
 import br.com.sintonia.playback.PlaybackService;
+import br.com.sintonia.playback.QueueItemNotWaitingException;
 import br.com.sintonia.room.Room;
 import br.com.sintonia.room.RoomClosedException;
 import br.com.sintonia.room.RoomNotFoundException;
@@ -217,6 +218,24 @@ class QueueControllerTest {
     }
 
     @Test
+    void returnsAutoDjItemWithNullAddedBy() throws Exception {
+        Room room = mock(Room.class);
+        Song song = mock(Song.class);
+        when(song.getId()).thenReturn(123L);
+        when(song.getYoutubeVideoId()).thenReturn("auto123");
+        when(song.getTitle()).thenReturn("Auto DJ");
+        when(song.getDuration()).thenReturn(Duration.ofSeconds(180));
+        QueueItem item = new QueueItem(room, song, Instant.parse("2026-09-09T18:30:00Z"), 1);
+        ReflectionTestUtils.setField(item, "id", 11L);
+        when(queueService.findQueue(ROOM_ID)).thenReturn(List.of(item));
+
+        mockMvc.perform(get("/api/rooms/{roomId}/queue", ROOM_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(11))
+                .andExpect(jsonPath("$[0].addedBy").doesNotExist());
+    }
+
+    @Test
     void returnsNotFoundWhenRoomDoesNotExistForQueue() throws Exception {
         when(queueService.findQueue(ROOM_ID))
                 .thenThrow(new RoomNotFoundException("Sala não encontrada."));
@@ -278,6 +297,30 @@ class QueueControllerTest {
                         .with(auth(USER_ID)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Item da fila não encontrado."));
+    }
+
+    @Test
+    void returnsForbiddenWhenUserDoesNotOwnItem() throws Exception {
+        doThrow(new QueueItemNotOwnedException("Somente quem adicionou a música pode removê-la da fila."))
+                .when(queueService).remove(ROOM_ID, 10L, USER_ID);
+
+        mockMvc.perform(delete("/api/rooms/{roomId}/queue/{queueItemId}", ROOM_ID, 10L)
+                        .with(auth(USER_ID)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value("Somente quem adicionou a música pode removê-la da fila."));
+    }
+
+    @Test
+    void returnsConflictWhenItemIsNotWaiting() throws Exception {
+        doThrow(new QueueItemNotWaitingException("O item da fila não está aguardando reprodução."))
+                .when(queueService).remove(ROOM_ID, 10L, USER_ID);
+
+        mockMvc.perform(delete("/api/rooms/{roomId}/queue/{queueItemId}", ROOM_ID, 10L)
+                        .with(auth(USER_ID)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message")
+                        .value("O item da fila não está aguardando reprodução."));
     }
 
     @Test

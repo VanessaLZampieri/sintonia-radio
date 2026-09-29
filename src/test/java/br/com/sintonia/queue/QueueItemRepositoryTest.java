@@ -121,24 +121,28 @@ class QueueItemRepositoryTest {
     }
 
     @Test
-    void findAllByRoomIdOrderByPositionAscIdAsc_returnsItems() {
+    void findAllByRoomIdAndStatusOrderByPositionAscIdAsc_returnsUserItems() {
         Room room = persistRoom("QT000009");
         Song song = persistSong("song-9a");
         User user = persistUser("g9", "e9@example.com");
         persistQueueItem(room, song, user, 1);
 
-        assertThat(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(room.getId())).hasSize(1);
+        List<QueueItem> items = queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                room.getId(), QueueItemStatus.WAITING);
+
+        assertThat(items).singleElement().satisfies(item -> assertThat(item.getUser()).isEqualTo(user));
     }
 
     @Test
-    void findAllByRoomIdOrderByPositionAscIdAsc_returnsEmptyWhenNoItems() {
+    void findAllByRoomIdAndStatusOrderByPositionAscIdAsc_returnsEmptyWhenNoItems() {
         Room room = persistRoom("QT000010");
 
-        assertThat(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(room.getId())).isEmpty();
+        assertThat(queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                room.getId(), QueueItemStatus.WAITING)).isEmpty();
     }
 
     @Test
-    void findAllByRoomIdOrderByPositionAscIdAsc_respectsPositionOrder() {
+    void findAllByRoomIdAndStatusOrderByPositionAscIdAsc_respectsPositionOrder() {
         Room room = persistRoom("QT000011");
         Song song1 = persistSong("song-11a");
         Song song2 = persistSong("song-11b");
@@ -148,7 +152,8 @@ class QueueItemRepositoryTest {
         persistQueueItem(room, song1, user, 1);
         persistQueueItem(room, song2, user, 2);
 
-        var items = queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(room.getId());
+        var items = queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                room.getId(), QueueItemStatus.WAITING);
 
         assertThat(items).hasSize(3);
         assertThat(items.get(0).getSong().getYoutubeVideoId()).isEqualTo("song-11a");
@@ -157,7 +162,7 @@ class QueueItemRepositoryTest {
     }
 
     @Test
-    void findAllByRoomIdOrderByPositionAscIdAsc_usesIdAsTiebreaker() {
+    void findAllByRoomIdAndStatusOrderByPositionAscIdAsc_usesIdAsTiebreaker() {
         Room room = persistRoom("QT000012");
         Song song = persistSong("song-12");
         User user1 = persistUser("g12a", "e12a@example.com");
@@ -165,20 +170,53 @@ class QueueItemRepositoryTest {
         persistQueueItem(room, song, user1, 1);
         persistQueueItem(room, song, user2, 1);
 
-        var items = queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(room.getId());
+        var items = queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                room.getId(), QueueItemStatus.WAITING);
 
         assertThat(items).hasSize(2);
     }
 
     @Test
-    void findAllByRoomIdOrderByPositionAscIdAsc_doesNotReturnOtherRoom() {
+    void findAllByRoomIdAndStatusOrderByPositionAscIdAsc_doesNotReturnOtherRoom() {
         Room room1 = persistRoom("QT000013");
         Room room2 = persistRoom("QT000014");
         Song song = persistSong("song-13");
         User user = persistUser("g13", "e13@example.com");
         persistQueueItem(room1, song, user, 1);
 
-        assertThat(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(room2.getId())).isEmpty();
+        assertThat(queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                room2.getId(), QueueItemStatus.WAITING)).isEmpty();
+    }
+
+    @Test
+    void findAllByRoomIdAndStatusOrderByPositionAscIdAsc_excludesPlayingAndHistoricalItems() {
+        Room room = persistRoom("QT000032");
+        User user = persistUser("g32", "e32@example.com");
+        QueueItem waiting = persistQueueItem(
+                room, persistSong("song-32w"), user, 1, QueueItemStatus.WAITING);
+        persistQueueItem(room, persistSong("song-32p"), user, 2, QueueItemStatus.PLAYING);
+        persistQueueItem(room, persistSong("song-32f"), user, 3, QueueItemStatus.FINISHED);
+        persistQueueItem(room, persistSong("song-32s"), user, 4, QueueItemStatus.SKIPPED);
+        persistQueueItem(room, persistSong("song-32e"), user, 5, QueueItemStatus.ERROR);
+
+        List<QueueItem> items = queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                room.getId(), QueueItemStatus.WAITING);
+
+        assertThat(items).containsExactly(waiting);
+    }
+
+    @Test
+    void findAllByRoomIdAndStatusOrderByPositionAscIdAsc_includesAutoDjItemWithoutUser() {
+        Room room = persistRoom("QT000033");
+        QueueItem autoDj = queueItemRepository.save(
+                new QueueItem(room, persistSong("song-33a"), Instant.now(), 1));
+
+        List<QueueItem> items = queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                room.getId(), QueueItemStatus.WAITING);
+
+        assertThat(items).containsExactly(autoDj);
+        assertThat(items.get(0).getUser()).isNull();
+        assertThat(items.get(0).getSource()).isEqualTo(QueueItemSource.AUTO_DJ);
     }
 
     @Test

@@ -100,7 +100,8 @@ public class RoomStateService {
     }
 
     private List<RoomStateResponse.QueueItemState> queueState(Long roomId) {
-        return queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(roomId).stream()
+        return queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                        roomId, QueueItemStatus.WAITING).stream()
                 .map(this::toQueueItemState)
                 .toList();
     }

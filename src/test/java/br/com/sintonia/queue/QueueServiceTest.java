@@ -305,7 +305,8 @@ class QueueServiceTest {
         assertThatThrownBy(() -> queueService.findQueue(ROOM_ID))
                 .isInstanceOf(RoomNotFoundException.class);
 
-        verify(queueItemRepository, never()).findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID);
+        verify(queueItemRepository, never())
+                .findAllByRoomIdAndStatusOrderByPositionAscIdAsc(ROOM_ID, QueueItemStatus.WAITING);
     }
 
     @Test
@@ -316,7 +317,8 @@ class QueueServiceTest {
         assertThatThrownBy(() -> queueService.findQueue(ROOM_ID))
                 .isInstanceOf(RoomClosedException.class);
 
-        verify(queueItemRepository, never()).findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID);
+        verify(queueItemRepository, never())
+                .findAllByRoomIdAndStatusOrderByPositionAscIdAsc(ROOM_ID, QueueItemStatus.WAITING);
     }
 
     @Test
@@ -324,24 +326,28 @@ class QueueServiceTest {
         Room activeRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(activeRoom));
         List<QueueItem> items = List.of(new QueueItem(activeRoom, song, user, java.time.Instant.now(), 1));
-        when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(items);
+        when(queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                ROOM_ID, QueueItemStatus.WAITING)).thenReturn(items);
 
         List<QueueItem> result = queueService.findQueue(ROOM_ID);
 
         assertThat(result).hasSize(1);
-        verify(queueItemRepository).findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID);
+        verify(queueItemRepository)
+                .findAllByRoomIdAndStatusOrderByPositionAscIdAsc(ROOM_ID, QueueItemStatus.WAITING);
     }
 
     @Test
     void findQueueReturnsEmptyListWhenRoomIsActiveWithNoItems() {
         Room activeRoom = new Room("Sala Teste", "ABCDEFGH", RoomStatus.ACTIVE);
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(activeRoom));
-        when(queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID)).thenReturn(List.of());
+        when(queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                ROOM_ID, QueueItemStatus.WAITING)).thenReturn(List.of());
 
         List<QueueItem> result = queueService.findQueue(ROOM_ID);
 
         assertThat(result).isEmpty();
-        verify(queueItemRepository).findAllByRoomIdOrderByPositionAscIdAsc(ROOM_ID);
+        verify(queueItemRepository)
+                .findAllByRoomIdAndStatusOrderByPositionAscIdAsc(ROOM_ID, QueueItemStatus.WAITING);
     }
 
     @Test
@@ -398,6 +404,7 @@ class QueueServiceTest {
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(room));
         when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
         when(queueItemRepository.findByIdAndRoomId(10L, ROOM_ID)).thenReturn(Optional.of(item));
+        when(user.getId()).thenReturn(USER_ID);
 
         queueService.remove(ROOM_ID, 10L, USER_ID);
 
@@ -415,6 +422,7 @@ class QueueServiceTest {
         when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(room));
         when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
         when(queueItemRepository.findByIdAndRoomId(10L, ROOM_ID)).thenReturn(Optional.of(item));
+        when(user.getId()).thenReturn(USER_ID);
 
         queueService.remove(ROOM_ID, 10L, USER_ID);
 
@@ -426,6 +434,38 @@ class QueueServiceTest {
         QueueChangedEventPayload payload = (QueueChangedEventPayload) event.payload();
         assertThat(payload.queueItemId()).isEqualTo(10L);
         assertThat(payload.action()).isEqualTo(QueueChangeAction.REMOVED);
+    }
+
+    @Test
+    void removeRejectsItemAddedByAnotherUser() {
+        User otherUser = mock(User.class);
+        when(otherUser.getId()).thenReturn(999L);
+        QueueItem item = new QueueItem(room, song, otherUser, java.time.Instant.now(), 1);
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(room));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
+        when(queueItemRepository.findByIdAndRoomId(10L, ROOM_ID)).thenReturn(Optional.of(item));
+
+        assertThatThrownBy(() -> queueService.remove(ROOM_ID, 10L, USER_ID))
+                .isInstanceOf(QueueItemNotOwnedException.class);
+
+        verify(queueItemRepository, never()).deleteById(10L);
+        verifyNoInteractions(roomEventPublisher, roomActivityService);
+    }
+
+    @Test
+    void removeRejectsOwnItemThatIsNotWaiting() {
+        QueueItem item = new QueueItem(room, song, user, java.time.Instant.now(), 1);
+        item.setStatus(QueueItemStatus.PLAYING);
+        when(user.getId()).thenReturn(USER_ID);
+        when(roomRepository.findById(ROOM_ID)).thenReturn(Optional.of(room));
+        when(roomMemberRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(ROOM_ID, USER_ID)).thenReturn(true);
+        when(queueItemRepository.findByIdAndRoomId(10L, ROOM_ID)).thenReturn(Optional.of(item));
+
+        assertThatThrownBy(() -> queueService.remove(ROOM_ID, 10L, USER_ID))
+                .isInstanceOf(br.com.sintonia.playback.QueueItemNotWaitingException.class);
+
+        verify(queueItemRepository, never()).deleteById(10L);
+        verifyNoInteractions(roomEventPublisher, roomActivityService);
     }
 
     @Test

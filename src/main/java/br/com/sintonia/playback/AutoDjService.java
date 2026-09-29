@@ -177,8 +177,8 @@ public class AutoDjService {
         playbackRepository.findByQueueItemRoomIdAndStatus(roomId, PlaybackStatus.PLAYING)
                 .ifPresent(playback -> ids.add(playback.getQueueItem().getSong().getYoutubeVideoId()));
 
-        queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(roomId).stream()
-                .filter(item -> item.getStatus() == QueueItemStatus.WAITING)
+        queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                        roomId, QueueItemStatus.WAITING).stream()
                 .map(item -> item.getSong().getYoutubeVideoId())
                 .forEach(ids::add);
 

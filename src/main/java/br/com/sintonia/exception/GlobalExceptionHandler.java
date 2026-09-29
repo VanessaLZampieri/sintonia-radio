@@ -17,6 +17,7 @@ import br.com.sintonia.playback.SkipVoteAlreadyExistsException;
 import br.com.sintonia.playback.QueueItemNotWaitingException;
 import br.com.sintonia.queue.SongAlreadyInQueueException;
 import br.com.sintonia.queue.QueueItemNotFoundException;
+import br.com.sintonia.queue.QueueItemNotOwnedException;
 import br.com.sintonia.queue.QueueLimitExceededException;
 import br.com.sintonia.song.SongNotFoundException;
 import br.com.sintonia.song.SongDurationLimitExceededException;
@@ -109,6 +110,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(QueueItemNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleQueueItemNotFound(QueueItemNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(QueueItemNotOwnedException.class)
+    public ResponseEntity<Map<String, String>> handleQueueItemNotOwned(QueueItemNotOwnedException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of("message", exception.getMessage()));
     }
 

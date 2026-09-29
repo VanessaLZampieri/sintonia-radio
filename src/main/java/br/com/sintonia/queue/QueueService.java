@@ -1,5 +1,6 @@
 package br.com.sintonia.queue;
 
+import br.com.sintonia.playback.QueueItemNotWaitingException;
 import br.com.sintonia.room.Room;
 import br.com.sintonia.room.RoomActivityService;
 import br.com.sintonia.room.RoomActivityType;
@@ -13,7 +14,6 @@ import br.com.sintonia.song.Song;
 import br.com.sintonia.song.SongNotFoundException;
 import br.com.sintonia.song.SongRepository;
 import br.com.sintonia.song.SongDurationPolicy;
-import br.com.sintonia.queue.QueueItemNotFoundException;
 import br.com.sintonia.user.User;
 import br.com.sintonia.user.UserRepository;
 import br.com.sintonia.websocket.QueueChangeAction;
@@ -66,7 +66,8 @@ public class QueueService {
             throw new RoomClosedException("Esta sala foi encerrada.");
         }
 
-        return queueItemRepository.findAllByRoomIdOrderByPositionAscIdAsc(roomId);
+        return queueItemRepository.findAllByRoomIdAndStatusOrderByPositionAscIdAsc(
+                roomId, QueueItemStatus.WAITING);
     }
 
     @Transactional(readOnly = true)
@@ -121,6 +122,13 @@ public class QueueService {
 
         QueueItem item = queueItemRepository.findByIdAndRoomId(queueItemId, roomId)
                 .orElseThrow(() -> new QueueItemNotFoundException("Item da fila não encontrado."));
+
+        if (item.getUser() == null || !userId.equals(item.getUser().getId())) {
+            throw new QueueItemNotOwnedException("Somente quem adicionou a música pode removê-la da fila.");
+        }
+        if (item.getStatus() != QueueItemStatus.WAITING) {
+            throw new QueueItemNotWaitingException("O item da fila não está aguardando reprodução.");
+        }
 
         User actor = userRepository.getReferenceById(userId);
         roomActivityService.record(room, RoomActivityType.SONG_REMOVED, actor, item.getSong(), null);
