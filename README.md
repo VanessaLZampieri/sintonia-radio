@@ -1,437 +1,382 @@
 # Sintonia 🎧
 
-Uma rádio compartilhada.
+**Boa música toca melhor em boa companhia.**
 
-O **Sintonia** é um projeto de desenvolvimento de software criado a partir de uma proposta do meu professor de programação.
+O Sintonia é uma rádio compartilhada que desenvolvi como projeto de estudo enquanto aprendo desenvolvimento back-end com Java.
 
-A proposta é simples: **cada aluno deve construir o sistema completo**, passando pelo back-end, front-end, banco de dados e testes.
+A ideia surgiu a partir de uma proposta do meu professor: cada aluno recebeu a mesma especificação e ficou responsável por pensar e construir sua própria solução.
 
-A especificação do projeto é a mesma para todos, mas as decisões de implementação ficam por conta de cada pessoa.
+O objetivo não era apenas fazer o sistema funcionar, mas também tomar decisões técnicas, lidar com os problemas que aparecessem durante o desenvolvimento e, no final, comparar as diferentes soluções criadas pela turma.
 
-No final, a ideia é comparar os caminhos escolhidos, entender as diferenças entre as soluções e discutir as decisões tomadas durante o desenvolvimento.
+O resultado foi um projeto bem maior do que eu imaginava quando comecei.
 
-Este repositório registra o meu caminho na construção do Sintonia.
+## Sobre o projeto
 
----
+O Sintonia permite criar salas em que várias pessoas podem montar e ouvir uma fila de músicas juntas.
 
-## 💡 Sobre o projeto
+As músicas são pesquisadas através do YouTube e o estado da sala é atualizado em tempo real. Quem está participando consegue acompanhar o que está tocando, adicionar músicas, votar para pular uma faixa e consultar o que aconteceu durante a sessão.
 
-O Sintonia é uma aplicação de **rádio compartilhada**, em que diferentes pessoas podem entrar em uma mesma sala e acompanhar a reprodução de um conteúdo de forma sincronizada.
+Existem duas formas de reprodução:
 
-A proposta parece simples à primeira vista, mas envolve vários problemas interessantes de desenvolvimento:
+### Todos os navegadores
 
-* Como criar e gerenciar as salas?
-* Como representar os usuários conectados?
-* Como controlar a fila de reprodução?
-* Como manter todos os usuários sincronizados?
-* Como o servidor deve controlar o estado atual da rádio?
-* Como comunicar mudanças em tempo real?
-* Como organizar as regras de negócio?
-* Como armazenar as informações no banco de dados?
-* Como testar tudo isso?
+Cada participante pode ouvir a música no próprio dispositivo.
 
-É justamente nesses problemas que está grande parte do aprendizado do projeto.
+A rádio mantém um estado compartilhado, mas cada pessoa pode pausar localmente sem interromper a reprodução para os outros participantes.
 
----
+### Caixa de música
 
-## 🎯 Objetivo
+Esse modo foi pensado para quando várias pessoas estão no mesmo ambiente.
 
-O objetivo não é apenas construir uma aplicação que funcione.
+Apenas um navegador fica responsável pela reprodução do áudio, enquanto todos continuam podendo adicionar músicas, votar e acompanhar a sala.
 
-A proposta é desenvolver o sistema completo e, durante esse processo, tomar decisões técnicas próprias e entender as consequências de cada uma.
+## Funcionalidades
 
-O projeto envolve:
+- Login com Google
+- Criação de salas com código de acesso
+- Presença de participantes
+- Busca de músicas pelo YouTube
+- Fila compartilhada
+- Limite de músicas por participante
+- Reprodução sincronizada
+- Modos **Todos os navegadores** e **Caixa de música**
+- Votação para pular músicas
+- Histórico de reprodução
+- Auto-DJ quando não existem músicas de usuários aguardando
+- Atividade da sala em tempo real
+- Resumo da sessão
+- Expiração automática de salas vazias
 
-* Back-end
-* Front-end
-* Banco de dados
-* Testes
-* API
-* Comunicação em tempo real
-* Arquitetura de software
-* Regras de negócio
-* Versionamento com Git
+Algumas dessas funcionalidades acabaram envolvendo regras maiores do que eu esperava.
 
-Como a especificação é compartilhada entre os alunos, as escolhas feitas durante o desenvolvimento poderão ser comparadas posteriormente com outras soluções para o mesmo problema.
+A fila, por exemplo, não é apenas uma lista exibida no front-end. O back-end controla a ordem, impede músicas duplicadas simultaneamente, limita cada participante a 8 músicas próprias aguardando e precisa lidar com operações concorrentes sem deixar a fila em um estado inconsistente.
 
----
-
-## 👩‍💻 Meu caminho
-
-Uma das partes mais interessantes dessa proposta é que **não existe uma implementação única obrigatória**.
-
-A especificação define o que o sistema precisa fazer, mas não necessariamente como fazer.
-
-Isso significa que algumas decisões serão minhas.
-
-Por exemplo:
-
-* Como estruturar o back-end?
-* Como dividir as responsabilidades?
-* Como modelar o banco?
-* Como representar uma sala?
-* Como implementar a sincronização?
-* Como organizar a API?
-* Como tratar determinadas regras de negócio?
-* Quais tecnologias e ferramentas utilizar?
-
-Durante o desenvolvimento, algumas dessas decisões podem mudar.
-
-E isso também faz parte do projeto.
-
-Quero registrar não apenas o código final, mas também as decisões e aprendizados que acontecerem pelo caminho.
-
----
-
-## 🚧 Status do projeto
-
-**Em desenvolvimento.**
-
-O projeto está atualmente na fase de planejamento e definição da solução.
-
-A implementação será feita por etapas, começando pelo MVP e evoluindo conforme os problemas forem sendo resolvidos.
-
----
-
-## 🧩 MVP
-
-A primeira versão deverá contemplar as funcionalidades essenciais da rádio compartilhada.
-
-Entre elas:
-
-* Criar uma sala
-* Entrar em uma sala
-* Escolher um apelido
-* Ver os usuários presentes
-* Adicionar músicas à fila
-* Reproduzir músicas
-* Manter a reprodução sincronizada
-* Controlar a reprodução
-* Sair da sala
-
-Funcionalidades adicionais serão consideradas depois que o funcionamento básico estiver estabelecido.
-
----
-
-## 🏗️ Arquitetura
-
-A arquitetura será definida durante a fase de planejamento e documentada neste repositório.
-
-A ideia inicial é trabalhar com uma aplicação dividida entre:
-
-```text
-Frontend
-    ↓
-API / Comunicação
-    ↓
-Backend
-    ↓
-Banco de Dados
-```
-
-Também será necessário lidar com comunicação em tempo real para que o estado da rádio possa ser compartilhado entre os usuários conectados.
-
-A estrutura definitiva será resultado das decisões tomadas durante o desenvolvimento.
-
----
-
-## 🛠️ Tecnologias
-
-A stack inicial planejada é:
+## Tecnologias
 
 ### Back-end
 
-* **Java**
-* **Spring Boot**
-* **API REST**
-* **WebSocket**
-
-### Banco de dados
-
-* **PostgreSQL**
+- Java 25
+- Spring Boot 4.1.1
+- Spring Security
+- OAuth2
+- Spring Data JPA
+- Hibernate
+- WebSocket + STOMP
+- Maven
 
 ### Front-end
 
-* **React**
-* **Vite**
-
-### Ferramentas
-
-* **Git**
-* **GitHub**
-* **IntelliJ IDEA**
-
-Essas escolhas ainda podem ser revistas durante o projeto.
-
----
-
-## ☕ Por que Java?
-
-Escolhi desenvolver o back-end em **Java** porque é uma das principais tecnologias que estou estudando atualmente.
-
-A ideia é aproveitar o projeto para sair um pouco dos exercícios isolados e começar a lidar com problemas mais próximos dos encontrados no desenvolvimento de uma aplicação real.
-
-Não espero saber tudo antes de começar.
-
-Parte do objetivo é justamente encontrar problemas que ainda não sei resolver, pesquisar, testar alternativas, errar, corrigir e entender o que estou fazendo.
-
----
-
-## ⚛️ Front-end
-
-A ideia inicial é utilizar **React com Vite** no front-end.
-
-O React ficará responsável pela interface da aplicação e pela interação com o usuário.
-
-O Vite será utilizado como ferramenta de desenvolvimento do projeto front-end.
-
-A separação entre front-end e back-end também será importante para praticar a comunicação entre diferentes partes de uma aplicação.
-
----
-
-## 📚 O que estou aprendendo com o projeto
-
-O Sintonia está sendo usado como uma forma de colocar em prática conceitos que estou estudando.
-
-### Java
-
-* Programação Orientada a Objetos
-* Classes e interfaces
-* Collections
-* Tratamento de exceções
-* Streams
-* Organização de código
-
-### Back-end
-
-* Spring Boot
-* APIs REST
-* HTTP
-* JSON
-* WebSocket
-* Validação
-* Regras de negócio
+- React
+- TypeScript
+- Vite
+- YouTube IFrame Player API
 
 ### Banco de dados
 
-* Modelagem
-* SQL
-* Relacionamentos
-* PostgreSQL
-* Persistência de dados
+- PostgreSQL
 
-### Arquitetura
+### Integrações e ferramentas
 
-* Separação de responsabilidades
-* Camadas
-* DTOs
-* Services
-* Repositories
-* Organização da aplicação
+- YouTube Data API v3
+- Google OAuth2
+- Git e GitHub
+- Docker
 
-### Testes
+## Arquitetura
 
-* Testes unitários
-* Testes de integração
-* Validação das regras de negócio
-
-### Desenvolvimento
-
-* Git
-* GitHub
-* Commits
-* Branches
-* Debugging
-* Documentação
-
----
-
-## 🗺️ Roadmap
-
-O roadmap pode mudar conforme o projeto evoluir.
-
-### Fase 1 — Planejamento
-
-* [x] Definir a ideia do projeto
-* [x] Definir o nome
-* [x] Definir o objetivo
-* [x] Definir o MVP
-* [ ] Documentar requisitos
-* [ ] Documentar regras de negócio
-* [ ] Definir arquitetura
-* [ ] Definir modelagem do banco
-* [ ] Definir estrutura do projeto
-
-### Fase 2 — Back-end
-
-* [ ] Criar projeto Java + Spring Boot
-* [ ] Criar estrutura inicial
-* [ ] Criar entidades
-* [ ] Criar regras de negócio
-* [ ] Criar API
-* [ ] Configurar PostgreSQL
-* [ ] Implementar salas
-* [ ] Implementar usuários
-* [ ] Implementar fila de músicas
-* [ ] Implementar WebSocket
-* [ ] Implementar sincronização
-
-### Fase 3 — Front-end
-
-* [ ] Criar projeto React + Vite
-* [ ] Criar tela inicial
-* [ ] Criar entrada na sala
-* [ ] Criar interface da rádio
-* [ ] Criar lista de usuários
-* [ ] Criar fila de músicas
-* [ ] Conectar ao back-end
-* [ ] Implementar comunicação em tempo real
-
-### Fase 4 — Testes
-
-* [ ] Criar testes unitários
-* [ ] Criar testes de integração
-* [ ] Testar regras de negócio
-* [ ] Testar comunicação entre componentes
-* [ ] Testar múltiplos usuários
-
-### Fase 5 — Integração
-
-* [ ] Integrar front-end e back-end
-* [ ] Testar sincronização
-* [ ] Corrigir problemas encontrados
-* [ ] Melhorar a experiência de uso
-
-### Fase 6 — Comparação
-
-Depois que o projeto estiver concluído, comparar minha implementação com a de outros alunos que receberam a mesma especificação.
-
-A ideia é analisar:
-
-* Decisões de arquitetura
-* Modelagem do banco
-* Organização do código
-* Tecnologias utilizadas
-* Estratégias de sincronização
-* Tratamento das regras de negócio
-* Testes
-* Pontos positivos e limitações de cada solução
-
----
-
-## 📁 Estrutura do projeto
-
-A estrutura inicial planejada é:
+De forma simplificada, o projeto funciona assim:
 
 ```text
-sintonia-radio/
-│
-├── backend/
-│
-├── frontend/
-│
-├── docs/
-│   ├── requisitos.md
-│   ├── regras-de-negocio.md
-│   ├── arquitetura.md
-│   └── roadmap.md
-│
-├── .gitignore
-└── README.md
+            ┌─────────────────┐
+            │  React + Vite   │
+            │    Front-end    │
+            └────────┬────────┘
+                     │
+              REST + WebSocket
+                     │
+            ┌────────▼────────┐
+            │   Spring Boot   │
+            │    Back-end     │
+            └───┬─────────┬───┘
+                │         │
+                │         └────────► YouTube Data API
+                │
+        ┌───────▼───────┐
+        │  PostgreSQL   │
+        └───────────────┘
+
+O navegador também utiliza a
+YouTube IFrame Player API para
+executar o áudio.
 ```
 
-Essa estrutura poderá mudar conforme o projeto evoluir.
+O back-end funciona como a principal fonte do estado compartilhado da rádio.
 
----
+O WebSocket é usado para comunicar mudanças aos participantes em tempo real, mas os navegadores também conseguem consultar um snapshot do estado atual da sala. Assim, uma reconexão não depende apenas dos eventos que foram recebidos anteriormente.
 
-## 📝 Documentação
+## Algumas decisões que deram trabalho
 
-Além do código, este repositório será utilizado para registrar algumas das decisões tomadas durante o desenvolvimento.
+Uma das coisas que mais gostei nesse projeto foi perceber que funcionalidades que parecem simples podem esconder decisões bem maiores.
 
-A documentação deverá incluir:
+### Quem toca o áudio?
 
-* Requisitos
-* Regras de negócio
-* Arquitetura
-* Modelagem do banco
-* Decisões técnicas
-* Roadmap
-* Anotações do desenvolvimento
+No começo, uma das decisões era escolher entre cada navegador tocar a música ou existir apenas um dispositivo responsável pelo áudio.
 
-A intenção é conseguir olhar para o projeto depois e entender **não apenas o que foi feito, mas por que foi feito daquela maneira**.
+Acabei implementando os dois comportamentos.
 
----
+Foi daí que surgiram os modos **Todos os navegadores** e **Caixa de música**.
 
-## 🎓 Por que este projeto existe?
+### O que significa estar presente em uma sala?
 
-Eu estou estudando programação e queria começar a aplicar o que estou aprendendo em algo maior do que exercícios separados.
+Também precisei separar coisas que inicialmente pareciam iguais.
 
-Foi daí que surgiu a proposta do Sintonia.
+Fechar uma aba, perder a conexão WebSocket por alguns segundos e clicar em **Sair** não significam necessariamente a mesma coisa.
 
-Meu professor propôs que cada aluno construísse sua própria solução para o mesmo problema.
+A presença acabou precisando de uma lógica própria para que uma desconexão temporária não removesse imediatamente alguém da sala.
 
-Todos partimos da mesma especificação, mas cada pessoa precisa descobrir como transformar aquilo em um sistema funcionando.
+### Quem decide o estado da rádio?
 
-Para mim, isso torna o projeto ainda mais interessante.
+Outra decisão importante foi manter o back-end como fonte principal do estado compartilhado.
 
-Não quero simplesmente chegar ao final com um código funcionando.
+O navegador executa o áudio e envia comandos, mas regras como fila, votos, modo de reprodução e estado da música são controladas pelo servidor.
 
-Quero entender o caminho.
+### E se duas pessoas fizerem alguma coisa ao mesmo tempo?
 
-Quero descobrir quais decisões fazem sentido, quais não fazem, onde vou errar e o que vou aprender tentando resolver cada problema.
+Esse foi um problema que eu não tinha pensado quando comecei o projeto.
 
-E, no final, quero poder comparar minha solução com outras soluções construídas a partir exatamente do mesmo ponto de partida.
+Adicionar músicas, votar e alterar uma reprodução são operações que podem acontecer praticamente ao mesmo tempo em navegadores diferentes.
 
----
+Por isso, algumas partes do projeto precisaram lidar com concorrência para impedir estados inválidos, como duas músicas ocupando a mesma situação de reprodução ou um voto sendo contado mais de uma vez.
 
-## 🚀 Próximos passos
+As decisões técnicas do projeto estão registradas com mais detalhes em [`DECISIONS.md`](DECISIONS.md).
 
-Antes de começar a escrever código, vou finalizar:
+## Testes
 
-1. Requisitos
-2. Regras de negócio
-3. Modelagem
-4. Arquitetura
-5. Estrutura inicial do projeto
+O Sintonia possui testes automatizados tanto no back-end quanto no front-end.
 
-Depois disso, começa a implementação.
+Durante o desenvolvimento, foram testadas situações como:
 
-A ideia é seguir mais ou menos assim:
+- limite de músicas por participante;
+- músicas duplicadas;
+- votação duplicada;
+- concorrência na fila;
+- transições de playback;
+- autenticação;
+- CSRF;
+- presença e expiração;
+- regras dos modos de reprodução;
+- estados da sala;
+- comportamento da interface.
+
+Também fiz vários testes manualmente, principalmente nos fluxos que dependem da interação entre navegadores diferentes e na validação da interface.
+
+## Desenvolvimento com apoio de IA
+
+**Este projeto foi desenvolvido com apoio de Inteligência Artificial.**
+
+Usei IA para discutir soluções, entender conceitos, investigar erros, revisar código, implementar partes do projeto e criar testes.
+
+Como ainda estou aprendendo Java e desenvolvimento back-end, existem partes do Sintonia que são mais avançadas do que o código que eu conseguiria escrever sozinha hoje.
+
+Preferi deixar isso explícito.
+
+Durante o desenvolvimento, procurei acompanhar as alterações, testar o comportamento da aplicação e entender as decisões que estavam sendo tomadas. Quando alguma coisa não funcionava como esperado, eu também voltava ao problema, testava e revisava a solução antes de seguir.
+
+Agora, com a aplicação funcional, uma das minhas próximas etapas é voltar ao código e estudar com mais calma os módulos e conceitos que ainda não domino.
+
+Para mim, o Sintonia não é uma demonstração de que já sei fazer sozinha tudo o que existe nele. É um registro do que estou conseguindo construir e aprender usando as ferramentas que tenho disponíveis hoje.
+
+## O que aprendi
+
+Comecei o Sintonia querendo praticar Java fora de exercícios pequenos.
+
+No processo, acabei tendo contato com vários assuntos que eu ainda estava começando a estudar:
+
+- APIs REST
+- Spring Boot
+- autenticação com OAuth2
+- persistência com JPA/Hibernate
+- PostgreSQL
+- WebSocket
+- concorrência
+- sessões e presença
+- integração com APIs externas
+- testes automatizados
+- React e TypeScript
+- Docker
+- deploy
+- debugging de problemas envolvendo front-end e back-end
+
+Ainda tenho bastante coisa para estudar dentro do próprio código do projeto.
+
+Mas essa era justamente uma das ideias: construir algo que me obrigasse a encontrar problemas que eu ainda não sabia resolver.
+
+## Rodando o projeto localmente
+
+### Pré-requisitos
+
+Para executar o Sintonia localmente, você vai precisar de:
+
+- JDK 25
+- Node.js 22
+- PostgreSQL
+- uma aplicação OAuth configurada no Google
+- uma chave da YouTube Data API v3
+
+O Maven não precisa ser instalado separadamente porque o projeto utiliza o Maven Wrapper.
+
+### Banco de dados
+
+Crie um banco PostgreSQL chamado `sintonia`:
+
+```sql
+CREATE DATABASE sintonia;
+```
+
+A configuração local utiliza:
 
 ```text
-Especificação
-     ↓
-Requisitos
-     ↓
-Regras de negócio
-     ↓
-Modelagem
-     ↓
-Arquitetura
-     ↓
-Implementação
-     ↓
-Testes
-     ↓
-Integração
-     ↓
-Comparação
+host: localhost
+porta: 5432
+banco: sintonia
+usuário: postgres
 ```
 
----
+A senha do banco é fornecida através de variável de ambiente.
 
-## 📄 Licença
+### Variáveis de ambiente
 
-A licença do projeto ainda será definida.
+Antes de iniciar o back-end, configure:
 
----
+```text
+DB_PASSWORD
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+YOUTUBE_API_KEY
+```
 
-## 👩‍💻 Sobre
+As credenciais não devem ser adicionadas ao repositório.
 
-Este é um projeto de estudo e portfólio.
+No PowerShell, por exemplo:
 
-O Sintonia está sendo desenvolvido enquanto estudo desenvolvimento de software, com foco principalmente em **Java e back-end**.
+```powershell
+$env:DB_PASSWORD="<sua-senha>"
+$env:GOOGLE_CLIENT_ID="<seu-client-id>"
+$env:GOOGLE_CLIENT_SECRET="<seu-client-secret>"
+$env:YOUTUBE_API_KEY="<sua-api-key>"
+```
 
-Mais do que mostrar um resultado pronto, este repositório pretende registrar o processo de construção do projeto.
+### Google OAuth
 
-**Em desenvolvimento.**
+Para executar o login com Google localmente, o cliente OAuth precisa possuir o seguinte redirect URI:
+
+```text
+http://localhost:8080/login/oauth2/code/google
+```
+
+Os escopos utilizados pelo projeto são:
+
+```text
+openid
+email
+profile
+```
+
+### YouTube
+
+A busca de músicas utiliza a **YouTube Data API v3**, que precisa estar habilitada no projeto associado à chave utilizada em `YOUTUBE_API_KEY`.
+
+A reprodução no navegador utiliza a **YouTube IFrame Player API**.
+
+### Iniciando o back-end
+
+Na raiz do projeto:
+
+```powershell
+.\mvnw.cmd spring-boot:run
+```
+
+O back-end será iniciado em:
+
+```text
+http://localhost:8080
+```
+
+### Iniciando o front-end
+
+Em outro terminal:
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+O Vite será iniciado em:
+
+```text
+http://localhost:5173
+```
+
+Durante o desenvolvimento, o Vite encaminha as requisições necessárias para o back-end executado na porta `8080`.
+
+## Executando os testes
+
+### Back-end
+
+Na raiz do projeto:
+
+```powershell
+.\mvnw.cmd test
+```
+
+A suíte completa do back-end utiliza o PostgreSQL configurado para a aplicação. Por isso, o banco precisa estar disponível e `DB_PASSWORD` precisa estar definida.
+
+### Front-end
+
+```powershell
+cd frontend
+npm ci
+npm test
+```
+
+Para validar o build:
+
+```powershell
+npm run build
+```
+
+## Docker
+
+O projeto também possui um `Dockerfile` multi-stage.
+
+Durante o build, o front-end é compilado com Node.js e incorporado à aplicação Spring Boot. A imagem final executa a aplicação utilizando Java 25.
+
+O PostgreSQL não faz parte da imagem e precisa ser fornecido separadamente.
+
+## Documentação
+
+Além deste README, o repositório possui documentos que registram partes mais específicas do projeto:
+
+- [`SPEC.md`](SPEC.md) — especificação e regras de negócio
+- [`API.md`](API.md) — principais endpoints da aplicação
+- [`DECISIONS.md`](DECISIONS.md) — decisões técnicas e alternativas consideradas
+- [`docs/data-model.md`](docs/data-model.md) — modelo de dados
+
+A intenção é registrar não apenas o resultado final, mas também algumas das decisões que levaram até ele.
+
+## Status
+
+O Sintonia está funcional e já passou por testes automatizados e validações manuais dos principais fluxos.
+
+A aplicação também foi publicada para validação.
+
+Ainda existem coisas que quero fazer depois, principalmente continuar estudando a implementação, melhorar a documentação e experimentar a publicação do projeto na Oracle Cloud.
+
+## Sobre
+
+Este é um projeto de estudo e portfólio desenvolvido durante minha formação em Engenharia de Software, com foco principalmente no meu aprendizado de **Java e desenvolvimento back-end**.
+
+Comecei o Sintonia sem saber como resolver boa parte dos problemas que apareceriam pelo caminho.
+
+Esse acabou sendo justamente o ponto mais importante do projeto.
